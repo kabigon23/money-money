@@ -1,65 +1,61 @@
-import Image from "next/image";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="flex flex-col gap-8 min-h-screen p-8 pb-20 font-[family-name:var(--font-geist-sans)]">
+      <header className="flex flex-col gap-2">
+        <h1 className="text-4xl font-bold tracking-tight">Asset-Master</h1>
+        <p className="text-muted-foreground text-lg">
+          실시간 자산 비중 분석 및 포트폴리오 관리 시스템
+        </p>
+      </header>
+
+      <main className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle>자산 비중</CardTitle>
+            <CardDescription>태그별 자산 할당 현황</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-40 flex items-center justify-center bg-muted rounded-md italic text-muted-foreground">
+              차트가 여기에 표시됩니다
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle>실시간 시세</CardTitle>
+            <CardDescription>미 증시 및 국내 상장 미국 ETF</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex justify-between p-2 hover:bg-muted/50 rounded-lg">
+                <span>NVDA</span>
+                <span className="text-green-500 font-medium">+2.5%</span>
+              </div>
+              <div className="flex justify-between p-2 hover:bg-muted/50 rounded-lg">
+                <span>KODEX 미국나스닥100</span>
+                <span className="text-green-500 font-medium">+1.2%</span>
+              </div>
+              <div className="flex justify-between p-2 hover:bg-muted/50 rounded-lg">
+                <span>AAPL</span>
+                <span className="text-red-500 font-medium">-0.4%</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle>최근 활동</CardTitle>
+            <CardDescription>최근 거래 및 변경 내역</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">내역이 없습니다.</p>
+          </CardContent>
+        </Card>
       </main>
     </div>
-  );
+  )
 }
