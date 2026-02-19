@@ -1,35 +1,43 @@
-import { useState, useEffect } from 'react'
-import { Asset, Exchange, PriceInfo } from '@/types'
+import { useState, useEffect, useCallback } from 'react'
+import { Asset, PriceInfo } from '@/types'
 import { MarketService } from '@/services/market'
 
 export function useAssetPrices(assets: Asset[]) {
     const [prices, setPrices] = useState<Record<string, PriceInfo>>({})
+    const [exchangeRate, setExchangeRate] = useState<number>(1350)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<Error | null>(null)
 
-    const fetchPrices = async () => {
-        if (assets.length === 0) return
+    const fetchPrices = useCallback(async () => {
+        if (assets.length === 0) {
+            setLoading(false)
+            return
+        }
 
         setLoading(true)
         try {
             const symbols = assets.map(a => ({ symbol: a.symbol, exchange: a.exchange }))
-            const newPrices = await MarketService.getPrices(symbols)
+            const [newPrices, newRate] = await Promise.all([
+                MarketService.getPrices(symbols),
+                MarketService.getExchangeRate()
+            ])
+
             setPrices(newPrices)
+            setExchangeRate(newRate)
             setError(null)
         } catch (err) {
-            setError(err instanceof Error ? err : new Error('Failed to fetch prices'))
+            setError(err instanceof Error ? err : new Error('Failed to fetch prices or exchange rate'))
         } finally {
             setLoading(false)
         }
-    }
+    }, [assets])
 
     useEffect(() => {
         fetchPrices()
 
-        // 1분마다 가격 갱신 (선택 사항)
         const interval = setInterval(fetchPrices, 60000)
         return () => clearInterval(interval)
-    }, [assets])
+    }, [fetchPrices])
 
-    return { prices, loading, error, refresh: fetchPrices }
+    return { prices, exchangeRate, loading, error, refresh: fetchPrices }
 }

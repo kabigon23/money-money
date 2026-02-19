@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AssetDialog } from '@/components/AssetDialog'
@@ -20,6 +20,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/context/AuthContext'
+import { LogOut, User as UserIcon } from 'lucide-react'
 
 const INITIAL_CATEGORIES: Category[] = [
   { id: 'default', name: '기본' },
@@ -27,12 +30,160 @@ const INITIAL_CATEGORIES: Category[] = [
   { id: 'pension', name: '연금저축' },
 ]
 
+const INITIAL_TAGS: Tag[] = [
+  { id: 'tag-1x', name: '1배', color: '#2563EB' },
+  { id: 'tag-2x', name: '2배', color: '#DC2626' },
+  { id: 'tag-iren', name: 'IREN', color: '#10B981' },
+  { id: 'tag-oklo', name: 'OKLO', color: '#F59E0B' },
+  { id: 'tag-ionq', name: 'IONQ', color: '#8B5CF6' },
+  { id: 'tag-rklb', name: 'RKLB', color: '#EC4899' },
+]
+
+const INITIAL_ASSETS: Asset[] = [
+  {
+    id: 'asset-qld',
+    symbol: 'QLD',
+    name: 'QLD',
+    quantity: 769,
+    exchange: 'US',
+    categoryId: 'default',
+    tagId: 'tag-2x',
+    history: [{ id: 'h-1', type: 'INITIAL', amount: 769, totalAfter: 769, timestamp: Date.now() }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'asset-qqq',
+    symbol: 'QQQ',
+    name: 'QQQ',
+    quantity: 55,
+    exchange: 'US',
+    categoryId: 'default',
+    tagId: 'tag-1x',
+    history: [{ id: 'h-2', type: 'INITIAL', amount: 55, totalAfter: 55, timestamp: Date.now() }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'asset-qqqm',
+    symbol: 'QQQM',
+    name: 'QQQM',
+    quantity: 87,
+    exchange: 'US',
+    categoryId: 'default',
+    tagId: 'tag-1x',
+    history: [{ id: 'h-3', type: 'INITIAL', amount: 87, totalAfter: 87, timestamp: Date.now() }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'asset-kodex-nasdaq',
+    symbol: 'KODEX 미국나스닥100',
+    name: 'KODEX 미국나스닥100',
+    quantity: 1174,
+    exchange: 'KR',
+    categoryId: 'default',
+    tagId: 'tag-1x',
+    history: [{ id: 'h-4', type: 'INITIAL', amount: 1174, totalAfter: 1174, timestamp: Date.now() }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'asset-spy',
+    symbol: 'SPY',
+    name: 'SPY',
+    quantity: 1,
+    exchange: 'US',
+    categoryId: 'default',
+    tagId: 'tag-1x',
+    history: [{ id: 'h-5', type: 'INITIAL', amount: 1, totalAfter: 1, timestamp: Date.now() }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'asset-iren',
+    symbol: 'IREN',
+    name: 'IREN',
+    quantity: 75,
+    exchange: 'US',
+    categoryId: 'default',
+    tagId: 'tag-iren',
+    history: [{ id: 'h-6', type: 'INITIAL', amount: 75, totalAfter: 75, timestamp: Date.now() }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'asset-oklo',
+    symbol: 'OKLO',
+    name: 'OKLO',
+    quantity: 42,
+    exchange: 'US',
+    categoryId: 'default',
+    tagId: 'tag-oklo',
+    history: [{ id: 'h-7', type: 'INITIAL', amount: 42, totalAfter: 42, timestamp: Date.now() }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'asset-ionq',
+    symbol: 'IONQ',
+    name: 'IONQ',
+    quantity: 82,
+    exchange: 'US',
+    categoryId: 'default',
+    tagId: 'tag-ionq',
+    history: [{ id: 'h-8', type: 'INITIAL', amount: 82, totalAfter: 82, timestamp: Date.now() }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'asset-rklb',
+    symbol: 'RKLB',
+    name: 'RKLB',
+    quantity: 40,
+    exchange: 'US',
+    categoryId: 'default',
+    tagId: 'tag-rklb',
+    history: [{ id: 'h-9', type: 'INITIAL', amount: 40, totalAfter: 40, timestamp: Date.now() }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+]
+
 export default function Home() {
-  const [assets, setAssets] = useState<Asset[]>([])
+  const { user, logout, isLoading } = useAuth()
+  const router = useRouter()
+
+  const [assets, setAssets] = useState<Asset[]>(INITIAL_ASSETS)
   const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES)
-  const [tags, setTags] = useState<Tag[]>([])
+  const [tags, setTags] = useState<Tag[]>(INITIAL_TAGS)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all')
-  const { prices, loading } = useAssetPrices(assets)
+  const [baseCurrency, setBaseCurrency] = useState<'KRW' | 'USD'>('KRW')
+  const { prices, exchangeRate, loading } = useAssetPrices(assets)
+
+  // Route Guard
+  useEffect(() => {
+    if (!isLoading && (!user || user.role !== 'USER')) {
+      router.push('/login')
+    }
+  }, [user, isLoading, router])
+
+  // 통화 변환 헬퍼
+  const getPriceInBase = (price: number, assetExchange: 'US' | 'KR' | 'CRYPTO') => {
+    if (baseCurrency === 'KRW') {
+      return (assetExchange === 'US' || assetExchange === 'CRYPTO') ? price * exchangeRate : price
+    } else {
+      return assetExchange === 'KR' ? price / exchangeRate : price
+    }
+  }
+
+  const formatCurrency = (value: number) => {
+    if (baseCurrency === 'KRW') {
+      return `${Math.round(value).toLocaleString()}원`
+    } else {
+      return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }
+  }
 
   // 포트폴리오 요약 계산
   const summary = useMemo(() => {
@@ -41,19 +192,22 @@ export default function Home() {
     assets.forEach(asset => {
       const priceInfo = prices[asset.symbol]
       if (priceInfo) {
-        currentTotalValue += asset.quantity * priceInfo.currentPrice
+        const priceInBase = getPriceInBase(priceInfo.currentPrice, asset.exchange)
+        currentTotalValue += asset.quantity * priceInBase
       }
     })
 
     return {
       currentTotalValue,
     }
-  }, [assets, prices])
+  }, [assets, prices, baseCurrency, exchangeRate])
 
   const filteredAssets = useMemo(() => {
     if (selectedCategoryId === 'all') return assets
     return assets.filter(a => a.categoryId === selectedCategoryId)
   }, [assets, selectedCategoryId])
+
+  if (isLoading || !user || user.role !== 'USER') return null
 
   const saveAsset = (data: Omit<Asset, 'id' | 'createdAt' | 'updatedAt'> | Asset) => {
     if ('id' in data) {
@@ -64,6 +218,15 @@ export default function Home() {
       const asset: Asset = {
         ...data,
         id: Math.random().toString(36).substr(2, 9),
+        history: [
+          {
+            id: Math.random().toString(36).substr(2, 9),
+            type: 'INITIAL',
+            amount: data.quantity,
+            totalAfter: data.quantity,
+            timestamp: Date.now()
+          }
+        ],
         createdAt: Date.now(),
         updatedAt: Date.now(),
       }
@@ -125,6 +288,29 @@ export default function Home() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex flex-col items-end mr-2">
+            <div className="flex bg-muted p-1 rounded-lg">
+              <Button
+                variant={baseCurrency === 'KRW' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8 px-3 text-xs"
+                onClick={() => setBaseCurrency('KRW')}
+              >
+                KRW
+              </Button>
+              <Button
+                variant={baseCurrency === 'USD' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8 px-3 text-xs"
+                onClick={() => setBaseCurrency('USD')}
+              >
+                USD
+              </Button>
+            </div>
+            <span className="text-[10px] text-muted-foreground mt-1 font-medium">
+              적용 환율: 1 USD = {exchangeRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}원
+            </span>
+          </div>
           <CategoryManager
             categories={categories}
             onAddCategory={addCategory}
@@ -136,6 +322,25 @@ export default function Home() {
             onDeleteTag={deleteTag}
           />
           <AssetDialog onSave={saveAsset} categories={categories} tags={tags} />
+
+          <div className="h-8 w-px bg-slate-200 mx-2" />
+
+          <div className="flex items-center gap-3 pl-2">
+            <div className="flex flex-col items-end">
+              <span className="text-xs font-bold text-primary flex items-center gap-1">
+                <UserIcon className="w-3 h-3" /> {user.nickname}
+              </span>
+              <span className="text-[10px] text-muted-foreground tracking-tighter uppercase">Standard User</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={logout}
+              className="rounded-full hover:bg-destructive/10 hover:text-destructive h-9 w-9"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -149,8 +354,7 @@ export default function Home() {
             </CardHeader>
             <CardContent>
               <div className="text-5xl font-extrabold tracking-tighter text-primary">
-                {summary.currentTotalValue.toLocaleString()}
-                <span className="text-2xl ml-2 font-normal text-muted-foreground">KRW</span>
+                {formatCurrency(summary.currentTotalValue)}
               </div>
             </CardContent>
           </Card>
@@ -178,7 +382,13 @@ export default function Home() {
               </Select>
             </CardHeader>
             <CardContent>
-              <AssetAllocationChart assets={filteredAssets} tags={tags} prices={prices} />
+              <AssetAllocationChart
+                assets={filteredAssets}
+                tags={tags}
+                prices={prices}
+                baseCurrency={baseCurrency}
+                exchangeRate={exchangeRate}
+              />
             </CardContent>
           </Card>
 
@@ -197,7 +407,8 @@ export default function Home() {
                   Array.from(new Set(assets.map(a => a.symbol))).map(symbol => {
                     const priceInfo = prices[symbol]
                     const assetNames = Array.from(new Set(assets.filter(a => a.symbol === symbol).map(a => a.name))).join(', ')
-                    const isUS = assets.find(a => a.symbol === symbol)?.exchange === 'US'
+                    const firstAsset = assets.find(a => a.symbol === symbol)
+                    const isUSDNative = firstAsset?.exchange === 'US' || firstAsset?.exchange === 'CRYPTO'
                     return (
                       <div key={symbol} className="flex justify-between items-center p-4 hover:bg-muted/80 rounded-xl transition-all border bg-card shadow-sm">
                         <div className="flex flex-col">
@@ -206,8 +417,11 @@ export default function Home() {
                         </div>
                         <div className="text-right">
                           <div className="font-bold text-xl">
-                            {priceInfo ? priceInfo.currentPrice.toLocaleString() : '---'}
-                            <span className="text-sm ml-1 text-muted-foreground">{isUS ? '$' : '원'}</span>
+                            {priceInfo ? priceInfo.currentPrice.toLocaleString(undefined, {
+                              minimumFractionDigits: firstAsset?.exchange === 'CRYPTO' ? 2 : 0,
+                              maximumFractionDigits: firstAsset?.exchange === 'CRYPTO' ? 2 : 0
+                            }) : '---'}
+                            <span className="text-sm ml-1 text-muted-foreground">{isUSDNative ? '$' : '원'}</span>
                           </div>
                           {priceInfo && (
                             <div className={`text-sm font-bold flex items-center justify-end gap-1 ${priceInfo.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -253,13 +467,16 @@ export default function Home() {
                   {assets.map((asset) => {
                     const priceInfo = prices[asset.symbol]
                     const currentPrice = priceInfo?.currentPrice || 0
-                    const valuation = asset.quantity * currentPrice
+                    const valuationInBase = asset.quantity * getPriceInBase(currentPrice, asset.exchange)
 
                     return (
                       <TableRow key={asset.id} className="hover:bg-muted/30 transition-colors">
                         <TableCell className="px-6">
                           <div className="flex flex-col gap-1">
-                            <Badge variant={asset.exchange === 'US' ? 'default' : 'secondary'} className="w-fit">
+                            <Badge
+                              variant={asset.exchange === 'US' ? 'default' : asset.exchange === 'CRYPTO' ? 'outline' : 'secondary'}
+                              className={`w-fit ${asset.exchange === 'CRYPTO' ? 'bg-orange-500/10 text-orange-600 border-orange-200' : ''}`}
+                            >
                               {asset.exchange}
                             </Badge>
                             <span className="text-xs font-semibold text-muted-foreground">
@@ -273,14 +490,22 @@ export default function Home() {
                             <span className="text-xs text-muted-foreground tracking-widest">{asset.symbol}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono">{asset.quantity}</TableCell>
+                        <TableCell className="font-mono">{asset.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}</TableCell>
                         <TableCell className="font-mono">
-                          {currentPrice > 0 ? `${currentPrice.toLocaleString()}${asset.exchange === 'US' ? '$' : ''}` : '---'}
+                          {currentPrice > 0 ? (
+                            <span className="flex items-center gap-1">
+                              {(asset.exchange === 'US' || asset.exchange === 'CRYPTO') ? '$' : ''}
+                              {currentPrice.toLocaleString(undefined, {
+                                minimumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0,
+                                maximumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0
+                              })}
+                              {asset.exchange === 'KR' ? '원' : ''}
+                            </span>
+                          ) : '---'}
                         </TableCell>
                         <TableCell>
                           <span className="text-lg font-bold">
-                            {valuation > 0 ? valuation.toLocaleString() : '---'}
-                            <span className="text-xs ml-1 text-muted-foreground font-normal">원</span>
+                            {valuationInBase > 0 ? formatCurrency(valuationInBase) : '---'}
                           </span>
                         </TableCell>
                         <TableCell>

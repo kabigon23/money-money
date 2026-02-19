@@ -1,4 +1,4 @@
-export type Exchange = 'US' | 'KR'
+export type Exchange = 'US' | 'KR' | 'CRYPTO'
 
 export interface Category {
     id: string
@@ -12,6 +12,16 @@ export interface Tag {
     color: string
 }
 
+export type TransactionType = 'INITIAL' | 'BUY' | 'SELL' | 'EDIT'
+
+export interface Transaction {
+    id: string
+    type: TransactionType
+    amount: number
+    totalAfter: number
+    timestamp: number
+}
+
 export interface Asset {
     id: string
     symbol: string
@@ -20,6 +30,7 @@ export interface Asset {
     exchange: Exchange
     categoryId: string
     tagId: string | null
+    history: Transaction[]
     createdAt: number
     updatedAt: number
 }
