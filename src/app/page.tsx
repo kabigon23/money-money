@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil } from 'lucide-react'
+import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AssetDialog } from '@/components/AssetDialog'
+import { MobileAssetCard } from '@/components/MobileAssetCard'
 import { CategoryManager } from '@/components/CategoryManager'
 import { TagManager } from '@/components/TagManager'
 import { AssetAllocationChart } from '@/components/AssetAllocationChart'
@@ -22,7 +23,6 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
-import { LogOut, User as UserIcon } from 'lucide-react'
 
 const INITIAL_CATEGORIES: Category[] = [
   { id: 'default', name: '기본' },
@@ -151,22 +151,101 @@ const INITIAL_ASSETS: Asset[] = [
 ]
 
 export default function Home() {
-  const { user, logout, isLoading } = useAuth()
+  const { user, logout, isLoading: authLoading } = useAuth()
   const router = useRouter()
 
-  const [assets, setAssets] = useState<Asset[]>(INITIAL_ASSETS)
-  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES)
-  const [tags, setTags] = useState<Tag[]>(INITIAL_TAGS)
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [tags, setTags] = useState<Tag[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all')
   const [baseCurrency, setBaseCurrency] = useState<'KRW' | 'USD'>('KRW')
-  const { prices, exchangeRate, loading } = useAssetPrices(assets)
+  const [dataLoading, setDataLoading] = useState(true)
+
+  const { prices, exchangeRate, loading: pricesLoading } = useAssetPrices(assets)
+
+  // Data Fetching
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user) return
+      setDataLoading(true)
+      try {
+        const [assetsRes, categoriesRes, tagsRes] = await Promise.all([
+          fetch(`/api/assets?userId=${user.id}`),
+          fetch(`/api/categories?userId=${user.id}`),
+          fetch(`/api/tags?userId=${user.id}`)
+        ])
+
+        const assetsData = await assetsRes.json()
+        const categoriesData = await categoriesRes.json()
+        const tagsData = await tagsRes.json()
+
+        setAssets(assetsData)
+        if (categoriesData.length > 0) setCategories(categoriesData)
+        // Keep initial defaults if empty but DO NOT overwrite if user has nothing saved yet?
+        // Actually, if it's a new user, they might want defaults.
+        // For now, let's keep logic: if server returns empty, use defaults.
+        else setCategories(INITIAL_CATEGORIES)
+
+        if (tagsData.length > 0) setTags(tagsData)
+        else setTags(INITIAL_TAGS)
+      } catch (error) {
+        console.error('Failed to fetch data:', error)
+      } finally {
+        setDataLoading(false)
+      }
+    }
+
+    if (user) {
+      fetchData()
+    }
+  }, [user])
 
   // Route Guard
   useEffect(() => {
-    if (!isLoading && (!user || user.role !== 'USER')) {
+    if (!authLoading && (!user || user.role !== 'USER')) {
       router.push('/login')
     }
-  }, [user, isLoading, router])
+  }, [user, authLoading, router])
+
+  // Persistence helpers
+  const persistAssets = async (newAssets: Asset[]) => {
+    try {
+      if (!user) return
+      await fetch(`/api/assets?userId=${user.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAssets)
+      })
+    } catch (error) {
+      console.error('Failed to persist assets:', error)
+    }
+  }
+
+  const persistCategories = async (newCategories: Category[]) => {
+    try {
+      if (!user) return
+      await fetch(`/api/categories?userId=${user.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCategories)
+      })
+    } catch (error) {
+      console.error('Failed to persist categories:', error)
+    }
+  }
+
+  const persistTags = async (newTags: Tag[]) => {
+    try {
+      if (!user) return
+      await fetch(`/api/tags?userId=${user.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTags)
+      })
+    } catch (error) {
+      console.error('Failed to persist tags:', error)
+    }
+  }
 
   // 통화 변환 헬퍼
   const getPriceInBase = (price: number, assetExchange: 'US' | 'KR' | 'CRYPTO') => {
@@ -207,12 +286,17 @@ export default function Home() {
     return assets.filter(a => a.categoryId === selectedCategoryId)
   }, [assets, selectedCategoryId])
 
-  if (isLoading || !user || user.role !== 'USER') return null
+  if (authLoading || !user || user.role !== 'USER' || dataLoading) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-pulse text-xl font-bold italic" style={{ background: 'linear-gradient(90deg, #F59E0B, #FBBF24)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Loading MoneyMoney...</div>
+    </div>
+  )
 
-  const saveAsset = (data: Omit<Asset, 'id' | 'createdAt' | 'updatedAt'> | Asset) => {
+  const saveAsset = async (data: Omit<Asset, 'id' | 'createdAt' | 'updatedAt'> | Asset) => {
+    let newAssets: Asset[]
     if ('id' in data) {
       // Update
-      setAssets(assets.map(a => a.id === data.id ? { ...data, updatedAt: Date.now() } : a))
+      newAssets = assets.map(a => a.id === data.id ? { ...data, updatedAt: Date.now() } : a)
     } else {
       // Add
       const asset: Asset = {
@@ -230,44 +314,63 @@ export default function Home() {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       }
-      setAssets([...assets, asset])
+      newAssets = [...assets, asset]
     }
+    setAssets(newAssets)
+    await persistAssets(newAssets)
   }
 
-  const deleteAsset = (id: string) => {
-    setAssets(assets.filter(a => a.id !== id))
+  const deleteAsset = async (id: string) => {
+    const newAssets = assets.filter(a => a.id !== id)
+    setAssets(newAssets)
+    await persistAssets(newAssets)
   }
 
-  const addCategory = (name: string) => {
+  const addCategory = async (name: string) => {
     const newCategory: Category = {
       id: Math.random().toString(36).substr(2, 9),
       name,
     }
-    setCategories([...categories, newCategory])
+    const newCategories = [...categories, newCategory]
+    setCategories(newCategories)
+    await persistCategories(newCategories)
   }
 
-  const deleteCategory = (id: string) => {
+  const deleteCategory = async (id: string) => {
     if (id === 'default') return
-    setCategories(categories.filter(c => c.id !== id))
-    setAssets(assets.map(a => a.categoryId === id ? { ...a, categoryId: 'default' } : a))
+    const newCategories = categories.filter(c => c.id !== id)
+    setCategories(newCategories)
+    await persistCategories(newCategories)
+
+    const newAssets = assets.map(a => a.categoryId === id ? { ...a, categoryId: 'default' } : a)
+    setAssets(newAssets)
+    await persistAssets(newAssets)
+
     if (selectedCategoryId === id) setSelectedCategoryId('all')
   }
 
-  const addTag = (name: string, color: string) => {
+  const addTag = async (name: string, color: string) => {
     const newTag: Tag = {
       id: Math.random().toString(36).substr(2, 9),
       name,
       color,
     }
-    setTags([...tags, newTag])
+    const newTags = [...tags, newTag]
+    setTags(newTags)
+    await persistTags(newTags)
   }
 
-  const deleteTag = (id: string) => {
-    setTags(tags.filter(t => t.id !== id))
-    setAssets(assets.map(a => ({
+  const deleteTag = async (id: string) => {
+    const newTags = tags.filter(t => t.id !== id)
+    setTags(newTags)
+    await persistTags(newTags)
+
+    const newAssets = assets.map(a => ({
       ...a,
       tagId: a.tagId === id ? null : a.tagId
-    })))
+    }))
+    setAssets(newAssets)
+    await persistAssets(newAssets)
   }
 
   const getCategoryName = (id: string) => {
@@ -280,20 +383,29 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-8 min-h-screen p-8 pb-20 max-w-7xl mx-auto font-[family-name:var(--font-geist-sans)]">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-4xl font-bold tracking-tight text-primary">Asset-Master</h1>
-          <p className="text-muted-foreground text-lg italic">
-            Focus on Current Value Tracking.
-          </p>
+      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between sticky top-0 bg-background/80 backdrop-blur-md z-10 py-4 -mx-8 px-8 border-b">
+        <div className="flex items-center gap-3">
+          <div className="relative flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-2xl shadow-lg" style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' }}>
+            <span className="text-xl md:text-2xl">💰</span>
+            <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-yellow-300 animate-ping opacity-75"></div>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <h1 className="text-3xl md:text-4xl font-black tracking-tight bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #F59E0B 0%, #B45309 60%, #92400E 100%)' }}>
+              MoneyMoney
+            </h1>
+            <p className="text-muted-foreground text-xs md:text-sm italic font-medium tracking-wide">
+              Focus on Current Value Tracking.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-2 md:gap-4">
           <div className="flex flex-col items-end mr-2">
             <div className="flex bg-muted p-1 rounded-lg">
               <Button
                 variant={baseCurrency === 'KRW' ? 'default' : 'ghost'}
                 size="sm"
-                className="h-8 px-3 text-xs"
+                className="h-7 md:h-8 px-2 md:px-3 text-[10px] md:text-xs"
                 onClick={() => setBaseCurrency('KRW')}
               >
                 KRW
@@ -301,45 +413,67 @@ export default function Home() {
               <Button
                 variant={baseCurrency === 'USD' ? 'default' : 'ghost'}
                 size="sm"
-                className="h-8 px-3 text-xs"
+                className="h-7 md:h-8 px-2 md:px-3 text-[10px] md:text-xs"
                 onClick={() => setBaseCurrency('USD')}
               >
                 USD
               </Button>
             </div>
-            <span className="text-[10px] text-muted-foreground mt-1 font-medium">
-              적용 환율: 1 USD = {exchangeRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}원
+            <span className="text-[10px] text-muted-foreground mt-1 font-mono">
+              1 USD = {exchangeRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}원
             </span>
           </div>
-          <CategoryManager
-            categories={categories}
-            onAddCategory={addCategory}
-            onDeleteCategory={deleteCategory}
-          />
-          <TagManager
-            tags={tags}
-            onAddTag={addTag}
-            onDeleteTag={deleteTag}
-          />
+
+          <div className="hidden md:flex gap-2">
+            <CategoryManager
+              categories={categories}
+              onAddCategory={addCategory}
+              onDeleteCategory={deleteCategory}
+            />
+            <TagManager
+              tags={tags}
+              onAddTag={addTag}
+              onDeleteTag={deleteTag}
+            />
+          </div>
+
           <AssetDialog onSave={saveAsset} categories={categories} tags={tags} />
 
-          <div className="h-8 w-px bg-slate-200 mx-2" />
+          <div className="h-8 w-px bg-border mx-1 md:mx-2" />
 
-          <div className="flex items-center gap-3 pl-2">
+          <div className="flex items-center gap-2 md:gap-3 pl-1 md:pl-2">
             <div className="flex flex-col items-end">
               <span className="text-xs font-bold text-primary flex items-center gap-1">
                 <UserIcon className="w-3 h-3" /> {user.nickname}
               </span>
-              <span className="text-[10px] text-muted-foreground tracking-tighter uppercase">Standard User</span>
+              <span className="text-[10px] text-muted-foreground tracking-tighter uppercase hidden md:block">Standard User</span>
             </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={logout}
-              className="rounded-full hover:bg-destructive/10 hover:text-destructive h-9 w-9"
+              className="rounded-full hover:bg-destructive/10 hover:text-destructive h-8 w-8 md:h-9 md:w-9"
             >
               <LogOut className="w-4 h-4" />
             </Button>
+          </div>
+        </div>
+
+        {/* Mobile Management Buttons */}
+        <div className="flex md:hidden gap-2 w-full">
+          <div className="flex-1">
+            <CategoryManager
+              categories={categories}
+              onAddCategory={addCategory}
+              onDeleteCategory={deleteCategory}
+            />
+          </div>
+          <div className="flex-1">
+            <TagManager
+              tags={tags}
+              onAddTag={addTag}
+              onDeleteTag={deleteTag}
+            />
           </div>
         </div>
       </header>
@@ -434,7 +568,7 @@ export default function Home() {
                     )
                   })
                 )}
-                {loading && <p className="text-xs text-center text-muted-foreground animate-pulse mt-4">시세 갱신 중...</p>}
+                {pricesLoading && <p className="text-xs text-center text-muted-foreground animate-pulse mt-4">시세 갱신 중...</p>}
               </div>
             </CardContent>
           </Card>
@@ -451,117 +585,149 @@ export default function Home() {
                 아직 등록된 자산이 없습니다. '종목 추가' 버튼을 눌러 자산을 등록해 보세요.
               </div>
             ) : (
-              <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow>
-                    <TableHead className="font-semibold px-6">지역 / 카테고리</TableHead>
-                    <TableHead className="font-semibold">종목 정보</TableHead>
-                    <TableHead className="font-semibold">수량</TableHead>
-                    <TableHead className="font-semibold">현재가</TableHead>
-                    <TableHead className="font-semibold">현재 평가가치</TableHead>
-                    <TableHead className="font-semibold">태그</TableHead>
-                    <TableHead className="text-right px-6">삭제</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Mobile View */}
+                <div className="block md:hidden space-y-4 p-4 bg-muted/20">
                   {assets.map((asset) => {
                     const priceInfo = prices[asset.symbol]
                     const currentPrice = priceInfo?.currentPrice || 0
                     const valuationInBase = asset.quantity * getPriceInBase(currentPrice, asset.exchange)
+                    const isUSDNative = asset.exchange === 'US' || asset.exchange === 'CRYPTO'
 
                     return (
-                      <TableRow key={asset.id} className="hover:bg-muted/30 transition-colors">
-                        <TableCell className="px-6">
-                          <div className="flex flex-col gap-1">
-                            <Badge
-                              variant={asset.exchange === 'US' ? 'default' : asset.exchange === 'CRYPTO' ? 'outline' : 'secondary'}
-                              className={`w-fit ${asset.exchange === 'CRYPTO' ? 'bg-orange-500/10 text-orange-600 border-orange-200' : ''}`}
-                            >
-                              {asset.exchange}
-                            </Badge>
-                            <span className="text-xs font-semibold text-muted-foreground">
-                              {getCategoryName(asset.categoryId)}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-bold text-primary">{asset.name}</span>
-                            <span className="text-xs text-muted-foreground tracking-widest">{asset.symbol}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono">{asset.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}</TableCell>
-                        <TableCell className="font-mono">
-                          {currentPrice > 0 ? (
-                            <span className="flex items-center gap-1">
-                              {(asset.exchange === 'US' || asset.exchange === 'CRYPTO') ? '$' : ''}
-                              {currentPrice.toLocaleString(undefined, {
-                                minimumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0,
-                                maximumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0
-                              })}
-                              {asset.exchange === 'KR' ? '원' : ''}
-                            </span>
-                          ) : '---'}
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-lg font-bold">
-                            {valuationInBase > 0 ? formatCurrency(valuationInBase) : '---'}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {!asset.tagId ? (
-                              <span className="text-xs text-muted-foreground italic">-</span>
-                            ) : (
-                              (() => {
-                                const tag = getTag(asset.tagId)
-                                return tag ? (
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-[10px] h-5 text-white border-none shadow-sm"
-                                    style={{ backgroundColor: tag.color }}
-                                  >
-                                    {tag.name}
-                                  </Badge>
-                                ) : (
+                      <MobileAssetCard
+                        key={asset.id}
+                        asset={asset}
+                        currentPrice={currentPrice}
+                        valuation={valuationInBase}
+                        categoryName={getCategoryName(asset.categoryId)}
+                        tag={asset.tagId ? getTag(asset.tagId) : undefined}
+                        onSave={saveAsset}
+                        onDelete={deleteAsset}
+                        categories={categories}
+                        tags={tags}
+                        isUSDNative={isUSDNative}
+                        formatCurrency={formatCurrency}
+                      />
+                    )
+                  })}
+                </div>
+
+                {/* Desktop View */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow>
+                        <TableHead className="font-semibold px-6">지역 / 카테고리</TableHead>
+                        <TableHead className="font-semibold">종목 정보</TableHead>
+                        <TableHead className="font-semibold">수량</TableHead>
+                        <TableHead className="font-semibold">현재가</TableHead>
+                        <TableHead className="font-semibold">현재 평가가치</TableHead>
+                        <TableHead className="font-semibold">태그</TableHead>
+                        <TableHead className="text-right px-6">삭제</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {assets.map((asset) => {
+                        const priceInfo = prices[asset.symbol]
+                        const currentPrice = priceInfo?.currentPrice || 0
+                        const valuationInBase = asset.quantity * getPriceInBase(currentPrice, asset.exchange)
+
+                        return (
+                          <TableRow key={asset.id} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="px-6">
+                              <div className="flex flex-col gap-1">
+                                <Badge
+                                  variant={asset.exchange === 'US' ? 'default' : asset.exchange === 'CRYPTO' ? 'outline' : 'secondary'}
+                                  className={`w-fit ${asset.exchange === 'CRYPTO' ? 'bg-orange-500/10 text-orange-600 border-orange-200' : ''}`}
+                                >
+                                  {asset.exchange}
+                                </Badge>
+                                <span className="text-xs font-semibold text-muted-foreground">
+                                  {getCategoryName(asset.categoryId)}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-primary">{asset.name}</span>
+                                <span className="text-xs text-muted-foreground tracking-widest">{asset.symbol}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono">{asset.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}</TableCell>
+                            <TableCell className="font-mono">
+                              {currentPrice > 0 ? (
+                                <span className="flex items-center gap-1">
+                                  {(asset.exchange === 'US' || asset.exchange === 'CRYPTO') ? '$' : ''}
+                                  {currentPrice.toLocaleString(undefined, {
+                                    minimumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0,
+                                    maximumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0
+                                  })}
+                                  {asset.exchange === 'KR' ? '원' : ''}
+                                </span>
+                              ) : '---'}
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-lg font-bold">
+                                {valuationInBase > 0 ? formatCurrency(valuationInBase) : '---'}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {!asset.tagId ? (
                                   <span className="text-xs text-muted-foreground italic">-</span>
-                                )
-                              })()
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right px-6">
-                          <div className="flex justify-end gap-1">
-                            <AssetDialog
-                              onSave={saveAsset}
-                              categories={categories}
-                              tags={tags}
-                              initialAsset={asset}
-                              trigger={
+                                ) : (
+                                  (() => {
+                                    const tag = getTag(asset.tagId)
+                                    return tag ? (
+                                      <Badge
+                                        variant="secondary"
+                                        className="text-[10px] h-5 text-white border-none shadow-sm"
+                                        style={{ backgroundColor: tag.color }}
+                                      >
+                                        {tag.name}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground italic">-</span>
+                                    )
+                                  })()
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right px-6">
+                              <div className="flex justify-end gap-1">
+                                <AssetDialog
+                                  onSave={saveAsset}
+                                  categories={categories}
+                                  tags={tags}
+                                  initialAsset={asset}
+                                  trigger={
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full h-8 w-8"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  }
+                                />
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full h-8 w-8"
+                                  onClick={() => deleteAsset(asset.id)}
+                                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full h-8 w-8"
                                 >
-                                  <Pencil className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
-                              }
-                            />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => deleteAsset(asset.id)}
-                              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full h-8 w-8"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

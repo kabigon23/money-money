@@ -8,45 +8,38 @@ export class MarketService {
     /**
      * 종목 리스트의 현재가를 조회합니다.
      */
-    static async getPrices(symbols: { symbol: string; exchange: Exchange }[]): Promise<Record<string, PriceInfo>> {
-        // 실제 외부 API 연동 대신 목(Mock) 데이터를 반환합니다.
-        // 추후 실 연동 시 이 부분을 수정하면 됩니다.
+    static async getPrices(symbols: { symbol: string; exchange: Exchange }[]): Promise<{ prices: Record<string, PriceInfo>, exchangeRate: number }> {
+        const symbolList = symbols.map(s => s.symbol).join(',')
+        const query = symbolList ? `?symbols=${encodeURIComponent(symbolList)}` : ''
 
-        const results: Record<string, PriceInfo> = {}
-
-        for (const { symbol, exchange } of symbols) {
-            // 랜덤하게 가격 변동 시뮬레이션
-            let mockPrice = 0
-            if (exchange === 'CRYPTO') {
-                // Crypto prices (e.g. BTC around $90k, ETH around $2.5k)
-                const basePrices: Record<string, number> = {
-                    'BTC': 95000,
-                    'ETH': 27000,
-                    'SOL': 180,
-                }
-                const base = basePrices[symbol.toUpperCase()] || 100
-                mockPrice = base + (Math.random() * base * 0.05)
-            } else {
-                mockPrice = exchange === 'US' ? 150 + Math.random() * 50 : 50000 + Math.random() * 10000
+        try {
+            const response = await fetch(`/api/prices${query}`)
+            if (!response.ok) {
+                throw new Error('Failed to fetch prices')
             }
-
-            const mockChange = (Math.random() * 4 - 2).toFixed(2)
-
-            results[symbol] = {
-                symbol,
-                currentPrice: mockPrice,
-                change: Number(mockChange),
-                changePercent: (Number(mockChange) / (mockPrice / 100)),
-                lastUpdated: Date.now()
+            const data = await response.json()
+            return {
+                prices: data.prices,
+                exchangeRate: data.exchangeRate
+            }
+        } catch (error) {
+            console.error('Error fetching prices:', error)
+            // Fallback to empty results if API fails
+            return {
+                prices: {},
+                exchangeRate: 1350
             }
         }
-
-        return results
     }
 
-    static getExchangeRate(): number {
-        // Mock USD/KRW exchange rate (1 USD = 1350 KRW)
-        // In a real app, this would be fetched from an API
-        return 1350 + (Math.random() * 10 - 5) // Slight fluctuation
+    // This is now integrated into getPrices to reduce API calls
+    static async getExchangeRate(): Promise<number> {
+        try {
+            const response = await fetch('/api/prices?symbols=AAPL') // Just to get the rate
+            const data = await response.json()
+            return data.exchangeRate || 1350
+        } catch {
+            return 1350
+        }
     }
 }

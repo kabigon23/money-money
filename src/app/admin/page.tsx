@@ -24,9 +24,12 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { PasswordResetDialog } from '@/components/PasswordResetDialog'
+import { UserEditDialog } from '@/components/UserEditDialog'
+import { UserAddDialog } from '@/components/UserAddDialog'
 
 export default function AdminPage() {
-    const { user, users, logout, updatePassword, deleteUser, isLoading } = useAuth()
+    const { user, users, logout, isLoading } = useAuth()
     const router = useRouter()
 
     useEffect(() => {
@@ -35,20 +38,7 @@ export default function AdminPage() {
         }
     }, [user, isLoading, router])
 
-    const handleUpdatePassword = async (userId: string) => {
-        const newPassword = prompt('새로운 비밀번호를 입력하세요:')
-        if (newPassword) {
-            await updatePassword(userId, newPassword)
-            alert('비밀번호가 변경되었습니다.')
-        }
-    }
 
-    const handleDeleteUser = async (userId: string, nickname: string) => {
-        if (confirm(`'${nickname}' 계정을 삭제하시겠습니까?`)) {
-            await deleteUser(userId)
-            alert('계정이 삭제되었습니다.')
-        }
-    }
 
     if (isLoading || !user || user.role !== 'ADMIN') return null
 
@@ -119,9 +109,7 @@ export default function AdminPage() {
                                 <CardTitle className="text-2xl font-black italic">User Management</CardTitle>
                                 <CardDescription className="text-slate-400">전체 계정 리스트 및 권한 관리</CardDescription>
                             </div>
-                            <Button className="bg-white text-slate-900 hover:bg-slate-200 gap-2 rounded-xl font-bold">
-                                <UserPlus className="w-4 h-4" /> 신규 계정 추가
-                            </Button>
+                            <UserAddDialog />
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -139,14 +127,13 @@ export default function AdminPage() {
                                     <TableRow key={u.id} className="hover:bg-slate-50 transition-colors border-none group">
                                         <TableCell className="font-bold py-6 px-8 flex items-center gap-3">
                                             <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black ${u.role === 'ADMIN' ? 'bg-primary/10 text-primary' : 'bg-slate-200 text-slate-600'}`}>
-                                                {(u.nickname || u.name || 'U').substring(0, 2).toUpperCase()}
+                                                {(u.nickname || 'U').substring(0, 2).toUpperCase()}
                                             </div>
                                             <div className="flex flex-col">
-                                                <span>{u.name}</span>
-                                                <span className="text-xs text-muted-foreground font-mono">{u.username || 'unknown'}</span>
+                                                <span>{u.username}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell className="font-medium text-slate-600">{u.nickname || u.name}</TableCell>
+                                        <TableCell className="font-medium text-slate-600">{u.nickname}</TableCell>
                                         <TableCell>
                                             <Badge className={`border-none font-bold ${u.role === 'ADMIN' ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-600'}`}>
                                                 {u.role}
@@ -154,26 +141,34 @@ export default function AdminPage() {
                                         </TableCell>
                                         <TableCell className="text-right py-4 px-8">
                                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    title="비밀번호 변경"
-                                                    onClick={() => handleUpdatePassword(u.id)}
-                                                    className="h-9 w-9 rounded-full"
-                                                >
-                                                    <Key className="w-4 h-4" />
-                                                </Button>
-                                                {u.role !== 'ADMIN' && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        title="계정 삭제"
-                                                        onClick={() => handleDeleteUser(u.id, u.nickname)}
-                                                        className="h-9 w-9 text-destructive hover:bg-destructive/10 rounded-full"
-                                                    >
-                                                        <Settings className="w-4 h-4" />
-                                                    </Button>
-                                                )}
+                                                <PasswordResetDialog
+                                                    userId={u.id}
+                                                    userName={u.nickname}
+                                                    trigger={
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            title="비밀번호 변경"
+                                                            className="h-9 w-9 rounded-full"
+                                                        >
+                                                            <Key className="w-4 h-4" />
+                                                        </Button>
+                                                    }
+                                                />
+                                                <UserEditDialog
+                                                    user={u}
+                                                    isCurrentUser={user?.id === u.id}
+                                                    trigger={
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            title="사용자 정보 수정"
+                                                            className="h-9 w-9 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full"
+                                                        >
+                                                            <Settings className="w-4 h-4" />
+                                                        </Button>
+                                                    }
+                                                />
                                             </div>
                                         </TableCell>
                                     </TableRow>

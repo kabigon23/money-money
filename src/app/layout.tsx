@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Asset-Master",
+  title: "MoneyMoney",
   description: "실시간 자산 비중 분석 및 포트폴리오 관리 시스템",
 };
 
@@ -28,6 +28,7 @@ export default function RootLayout({
     <html lang="ko">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
         <AuthProvider>
           <TooltipProvider>{children}</TooltipProvider>

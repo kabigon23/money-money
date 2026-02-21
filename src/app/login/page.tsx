@@ -43,11 +43,12 @@ export default function LoginPage() {
             <div className="w-full max-w-md space-y-8">
                 <div className="text-center space-y-2">
                     <div className="flex justify-center">
-                        <div className="bg-primary/10 p-3 rounded-2xl shadow-inner">
-                            <Wallet className="w-12 h-12 text-primary" />
+                        <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl shadow-xl" style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' }}>
+                            <span className="text-3xl">💰</span>
+                            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-yellow-300 animate-ping opacity-75"></div>
                         </div>
                     </div>
-                    <h1 className="text-3xl font-bold tracking-tight text-primary">Asset-Master</h1>
+                    <h1 className="text-4xl font-black tracking-tight bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #F59E0B 0%, #B45309 60%, #92400E 100%)' }}>MoneyMoney</h1>
                     <p className="text-muted-foreground italic">Portfolio Tracking & Analysis</p>
                 </div>
 
@@ -103,20 +104,6 @@ export default function LoginPage() {
                             </Button>
                         </form>
 
-                        <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-2 gap-4">
-                            <div className="flex flex-col gap-1 p-3 bg-slate-50 rounded-xl">
-                                <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                                    <ShieldCheck className="w-3 h-3" /> Admin
-                                </div>
-                                <p className="text-sm font-mono text-slate-400">admin / 1234</p>
-                            </div>
-                            <div className="flex flex-col gap-1 p-3 bg-slate-50 rounded-xl">
-                                <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                                    <UserIcon className="w-3 h-3" /> User
-                                </div>
-                                <p className="text-sm font-mono text-slate-400">ezidol / 5678</p>
-                            </div>
-                        </div>
                     </CardContent>
                 </Card>
             </div>

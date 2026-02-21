@@ -9,18 +9,11 @@ export function useAssetPrices(assets: Asset[]) {
     const [error, setError] = useState<Error | null>(null)
 
     const fetchPrices = useCallback(async () => {
-        if (assets.length === 0) {
-            setLoading(false)
-            return
-        }
 
         setLoading(true)
         try {
             const symbols = assets.map(a => ({ symbol: a.symbol, exchange: a.exchange }))
-            const [newPrices, newRate] = await Promise.all([
-                MarketService.getPrices(symbols),
-                MarketService.getExchangeRate()
-            ])
+            const { prices: newPrices, exchangeRate: newRate } = await MarketService.getPrices(symbols)
 
             setPrices(newPrices)
             setExchangeRate(newRate)
