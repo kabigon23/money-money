@@ -3,6 +3,7 @@ import { Plus, Minus, History, Clock, ArrowRight } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, SubmitHandler } from 'react-hook-form'
 import * as z from 'zod'
+import { TickerSearch, TickerResult } from '@/components/TickerSearch'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -204,6 +205,21 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                         )}
                                     />
                                 </div>
+
+                                {/* 종목 검색 (추가 모드에서만) */}
+                                {!isEdit && (
+                                    <div className="rounded-xl border bg-slate-50 p-3 space-y-1">
+                                        <p className="text-xs font-bold text-slate-500 mb-2">🔍 종목 검색으로 빠르게 입력</p>
+                                        <TickerSearch
+                                            exchange={form.watch('exchange') as 'US' | 'KR' | 'CRYPTO'}
+                                            onSelect={(result: TickerResult) => {
+                                                form.setValue('symbol', result.symbol)
+                                                form.setValue('name', result.name)
+                                            }}
+                                        />
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}

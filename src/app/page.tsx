@@ -8,6 +8,7 @@ import { MobileAssetCard } from '@/components/MobileAssetCard'
 import { CategoryManager } from '@/components/CategoryManager'
 import { TagManager } from '@/components/TagManager'
 import { AssetAllocationChart } from '@/components/AssetAllocationChart'
+import { Watchlist } from '@/components/Watchlist'
 import { useAssetPrices } from '@/hooks/useAssetPrices'
 import { Asset, Category, Tag } from '@/types'
 import {
@@ -145,7 +146,10 @@ export default function Home() {
   const [categories, setCategories] = useState<Category[]>([])
   const [tags, setTags] = useState<Tag[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all')
-  const [baseCurrency, setBaseCurrency] = useState<'KRW' | 'USD'>('KRW')
+  const [baseCurrency, setBaseCurrency] = useState<'KRW' | 'USD'>(() => {
+    if (typeof window === 'undefined') return 'KRW'
+    return (localStorage.getItem('moneymoney_currency') as 'KRW' | 'USD') || 'KRW'
+  })
   const [dataLoading, setDataLoading] = useState(true)
 
   const { prices, exchangeRate, loading: pricesLoading } = useAssetPrices(assets)
@@ -387,7 +391,7 @@ export default function Home() {
                 variant={baseCurrency === 'KRW' ? 'default' : 'ghost'}
                 size="sm"
                 className="h-7 md:h-8 px-2 md:px-3 text-[10px] md:text-xs"
-                onClick={() => setBaseCurrency('KRW')}
+                onClick={() => { setBaseCurrency('KRW'); localStorage.setItem('moneymoney_currency', 'KRW') }}
               >
                 KRW
               </Button>
@@ -395,7 +399,7 @@ export default function Home() {
                 variant={baseCurrency === 'USD' ? 'default' : 'ghost'}
                 size="sm"
                 className="h-7 md:h-8 px-2 md:px-3 text-[10px] md:text-xs"
-                onClick={() => setBaseCurrency('USD')}
+                onClick={() => { setBaseCurrency('USD'); localStorage.setItem('moneymoney_currency', 'USD') }}
               >
                 USD
               </Button>
@@ -509,48 +513,11 @@ export default function Home() {
 
           <Card className="hover:shadow-lg transition-shadow flex flex-col">
             <CardHeader>
-              <CardTitle>실시간 시세 현황</CardTitle>
-              <CardDescription>보유 종목의 현재 시장 가격</CardDescription>
+              <CardTitle>관심 종목 시세</CardTitle>
+              <CardDescription>원하는 종목을 추가하고 실시간 시세를 확인하세요</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto">
-              <div className="space-y-4">
-                {assets.length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic text-center py-10 border border-dashed rounded-xl">
-                    보유 종목이 없습니다.
-                  </p>
-                ) : (
-                  Array.from(new Set(assets.map(a => a.symbol))).map(symbol => {
-                    const priceInfo = prices[symbol]
-                    const assetNames = Array.from(new Set(assets.filter(a => a.symbol === symbol).map(a => a.name))).join(', ')
-                    const firstAsset = assets.find(a => a.symbol === symbol)
-                    const isUSDNative = firstAsset?.exchange === 'US' || firstAsset?.exchange === 'CRYPTO'
-                    return (
-                      <div key={symbol} className="flex justify-between items-center p-4 hover:bg-muted/80 rounded-xl transition-all border bg-card shadow-sm">
-                        <div className="flex flex-col">
-                          <span className="font-black text-lg">{symbol}</span>
-                          <span className="text-xs text-muted-foreground">{assetNames}</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-xl">
-                            {priceInfo ? priceInfo.currentPrice.toLocaleString(undefined, {
-                              minimumFractionDigits: firstAsset?.exchange === 'CRYPTO' ? 2 : 0,
-                              maximumFractionDigits: firstAsset?.exchange === 'CRYPTO' ? 2 : 0
-                            }) : '---'}
-                            <span className="text-sm ml-1 text-muted-foreground">{isUSDNative ? '$' : '원'}</span>
-                          </div>
-                          {priceInfo && (
-                            <div className={`text-sm font-bold flex items-center justify-end gap-1 ${priceInfo.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                              {priceInfo.change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                              {Math.abs(priceInfo.changePercent).toFixed(2)}%
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-                {pricesLoading && <p className="text-xs text-center text-muted-foreground animate-pulse mt-4">시세 갱신 중...</p>}
-              </div>
+              <Watchlist userId={user.id} />
             </CardContent>
           </Card>
         </div>
@@ -580,6 +547,7 @@ export default function Home() {
                         key={asset.id}
                         asset={asset}
                         currentPrice={currentPrice}
+                        priceChange={priceInfo ? { change: priceInfo.change, changePercent: priceInfo.changePercent } : undefined}
                         valuation={valuationInBase}
                         categoryName={getCategoryName(asset.categoryId)}
                         tag={asset.tagId ? getTag(asset.tagId) : undefined}
@@ -638,14 +606,22 @@ export default function Home() {
                             <TableCell className="font-mono">{asset.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}</TableCell>
                             <TableCell className="font-mono">
                               {currentPrice > 0 ? (
-                                <span className="flex items-center gap-1">
-                                  {(asset.exchange === 'US' || asset.exchange === 'CRYPTO') ? '$' : ''}
-                                  {currentPrice.toLocaleString(undefined, {
-                                    minimumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0,
-                                    maximumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0
-                                  })}
-                                  {asset.exchange === 'KR' ? '원' : ''}
-                                </span>
+                                <div className="flex flex-col">
+                                  <span className="flex items-center gap-1">
+                                    {(asset.exchange === 'US' || asset.exchange === 'CRYPTO') ? '$' : ''}
+                                    {currentPrice.toLocaleString(undefined, {
+                                      minimumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0,
+                                      maximumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0
+                                    })}
+                                    {asset.exchange === 'KR' ? '원' : ''}
+                                  </span>
+                                  {priceInfo && (
+                                    <span className={`text-xs font-bold flex items-center gap-0.5 mt-0.5 ${priceInfo.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                      {priceInfo.change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                                      {priceInfo.change >= 0 ? '+' : ''}{priceInfo.changePercent.toFixed(2)}%
+                                    </span>
+                                  )}
+                                </div>
                               ) : '---'}
                             </TableCell>
                             <TableCell>

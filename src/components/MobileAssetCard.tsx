@@ -2,12 +2,13 @@ import { Asset, Category, Tag } from '@/types'
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, TrendingUp, TrendingDown } from 'lucide-react'
 import { AssetDialog } from './AssetDialog'
 
 interface MobileAssetCardProps {
     asset: Asset
     currentPrice: number
+    priceChange?: { change: number; changePercent: number }
     valuation: number
     categoryName: string
     tag?: Tag
@@ -22,6 +23,7 @@ interface MobileAssetCardProps {
 export function MobileAssetCard({
     asset,
     currentPrice,
+    priceChange,
     valuation,
     categoryName,
     tag,
@@ -75,6 +77,12 @@ export function MobileAssetCard({
                             })}
                             {asset.exchange === 'KR' ? '원' : ''}
                         </span>
+                        {priceChange && (
+                            <span className={`text-xs font-bold flex items-center justify-end gap-0.5 mt-0.5 ${priceChange.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {priceChange.change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                                {priceChange.change >= 0 ? '+' : ''}{priceChange.changePercent.toFixed(2)}%
+                            </span>
+                        )}
                     </div>
                 </div>
 
