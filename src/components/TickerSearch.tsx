@@ -15,6 +15,7 @@ export interface TickerResult {
 interface TickerSearchProps {
     onSelect: (result: TickerResult) => void
     exchange: 'US' | 'KR' | 'CRYPTO'
+    includeIndex?: boolean
 }
 
 // --- 인기 프리셋 종목 ---
@@ -85,7 +86,7 @@ function useDebounce<T>(value: T, delay: number): T {
     return debounced
 }
 
-export function TickerSearch({ onSelect, exchange }: TickerSearchProps) {
+export function TickerSearch({ onSelect, exchange, includeIndex }: TickerSearchProps) {
     const [query, setQuery] = useState('')
     const [results, setResults] = useState<TickerResult[]>([])
     const [loading, setLoading] = useState(false)
@@ -114,7 +115,7 @@ export function TickerSearch({ onSelect, exchange }: TickerSearchProps) {
         const fetchResults = async () => {
             setLoading(true)
             try {
-                const res = await fetch(`/api/ticker-search?q=${encodeURIComponent(debouncedQuery)}`)
+                const res = await fetch(`/api/ticker-search?q=${encodeURIComponent(debouncedQuery)}${includeIndex ? '&includeIndex=true' : ''}`)
                 const data = await res.json()
                 setResults(data)
                 setShowDropdown(true)
@@ -140,6 +141,15 @@ export function TickerSearch({ onSelect, exchange }: TickerSearchProps) {
             p.name.toLowerCase().includes(query.toLowerCase())
         )
         : presets
+
+    const TYPE_COLOR_MAP: Record<string, string> = {
+        ...TYPE_COLOR,
+        INDEX: 'bg-slate-100 text-slate-600',
+    }
+    const TYPE_LABEL_MAP: Record<string, string> = {
+        ...TYPE_LABEL,
+        INDEX: '지수',
+    }
 
     return (
         <div className="space-y-3">
@@ -180,8 +190,8 @@ export function TickerSearch({ onSelect, exchange }: TickerSearchProps) {
                                 >
                                     <span className="font-black text-sm w-24 shrink-0 text-slate-800">{item.symbol}</span>
                                     <span className="text-sm text-slate-600 flex-1 truncate">{item.name}</span>
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TYPE_COLOR[item.type] || 'bg-slate-100 text-slate-600'}`}>
-                                        {TYPE_LABEL[item.type] || item.type}
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TYPE_COLOR_MAP[item.type] || 'bg-slate-100 text-slate-600'}`}>
+                                        {TYPE_LABEL_MAP[item.type] || item.type}
                                     </span>
                                 </li>
                             ))}

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const query = searchParams.get('q')
+    const includeIndex = searchParams.get('includeIndex') === 'true'
 
     if (!query || query.trim().length < 1) {
         return NextResponse.json([])
@@ -25,8 +26,11 @@ export async function GET(request: NextRequest) {
         const data = await res.json()
         const quotes = data?.quotes || []
 
+        const allowedTypes = ['EQUITY', 'ETF', 'CRYPTOCURRENCY', 'MUTUALFUND']
+        if (includeIndex) allowedTypes.push('INDEX')
+
         const results = quotes
-            .filter((q: any) => q.symbol && (q.quoteType === 'EQUITY' || q.quoteType === 'ETF' || q.quoteType === 'CRYPTOCURRENCY' || q.quoteType === 'MUTUALFUND'))
+            .filter((q: any) => q.symbol && allowedTypes.includes(q.quoteType))
             .map((q: any) => ({
                 symbol: q.symbol,
                 name: q.shortname || q.longname || q.symbol,

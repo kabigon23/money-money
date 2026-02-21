@@ -116,6 +116,7 @@ export function Watchlist({ userId }: WatchlistProps) {
                 <div className="mb-3 rounded-xl border bg-slate-50 p-3">
                     <TickerSearch
                         exchange="US"
+                        includeIndex={true}
                         onSelect={addItem}
                     />
                 </div>
