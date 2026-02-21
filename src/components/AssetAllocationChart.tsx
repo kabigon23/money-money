@@ -102,13 +102,13 @@ export function AssetAllocationChart({ assets, tags, prices, baseCurrency, excha
 
     return (
         <div className="w-full">
-            <div className="h-[220px] w-full">
+            <div className="h-[240px] w-full pt-2">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
                             data={dataWithPercent}
                             cx="50%"
-                            cy="50%"
+                            cy="52%"
                             innerRadius={55}
                             outerRadius={85}
                             paddingAngle={3}
