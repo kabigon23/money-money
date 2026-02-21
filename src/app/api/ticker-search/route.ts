@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
         const quotes = data?.quotes || []
 
         const allowedTypes = ['EQUITY', 'ETF', 'CRYPTOCURRENCY', 'MUTUALFUND']
-        if (includeIndex) allowedTypes.push('INDEX')
+        if (includeIndex) allowedTypes.push('INDEX', 'FUTURE')
 
         const results = quotes
             .filter((q: any) => q.symbol && allowedTypes.includes(q.quoteType))

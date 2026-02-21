@@ -145,10 +145,12 @@ export function TickerSearch({ onSelect, exchange, includeIndex }: TickerSearchP
     const TYPE_COLOR_MAP: Record<string, string> = {
         ...TYPE_COLOR,
         INDEX: 'bg-slate-100 text-slate-600',
+        FUTURE: 'bg-yellow-100 text-yellow-700',
     }
     const TYPE_LABEL_MAP: Record<string, string> = {
         ...TYPE_LABEL,
         INDEX: '지수',
+        FUTURE: '선물',
     }
 
     return (
