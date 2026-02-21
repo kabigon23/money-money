@@ -24,20 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 
-const INITIAL_CATEGORIES: Category[] = [
-  { id: 'default', name: '기본' },
-  { id: 'active', name: '액티브' },
-  { id: 'pension', name: '연금저축' },
-]
 
-const INITIAL_TAGS: Tag[] = [
-  { id: 'tag-1x', name: '1배', color: '#2563EB' },
-  { id: 'tag-2x', name: '2배', color: '#DC2626' },
-  { id: 'tag-iren', name: 'IREN', color: '#10B981' },
-  { id: 'tag-oklo', name: 'OKLO', color: '#F59E0B' },
-  { id: 'tag-ionq', name: 'IONQ', color: '#8B5CF6' },
-  { id: 'tag-rklb', name: 'RKLB', color: '#EC4899' },
-]
 
 const INITIAL_ASSETS: Asset[] = [
   {
@@ -180,14 +167,8 @@ export default function Home() {
         const tagsData = await tagsRes.json()
 
         setAssets(assetsData)
-        if (categoriesData.length > 0) setCategories(categoriesData)
-        // Keep initial defaults if empty but DO NOT overwrite if user has nothing saved yet?
-        // Actually, if it's a new user, they might want defaults.
-        // For now, let's keep logic: if server returns empty, use defaults.
-        else setCategories(INITIAL_CATEGORIES)
-
-        if (tagsData.length > 0) setTags(tagsData)
-        else setTags(INITIAL_TAGS)
+        setCategories(categoriesData)
+        setTags(tagsData)
       } catch (error) {
         console.error('Failed to fetch data:', error)
       } finally {
