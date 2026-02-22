@@ -36,8 +36,8 @@ export function MobileAssetCard({
 }: MobileAssetCardProps) {
     return (
         <Card className="mb-4 overflow-hidden border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-                <div className="flex justify-between items-start mb-3">
+            <CardContent className="px-4 py-2.5">
+                <div className="flex justify-between items-start mb-2">
                     <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
                             <span className="font-bold text-lg text-primary">{asset.symbol}</span>
@@ -62,7 +62,7 @@ export function MobileAssetCard({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 py-3 border-t border-b border-dashed border-muted my-2">
+                <div className="grid grid-cols-2 gap-4 py-2 border-t border-b border-dashed border-muted my-1">
                     <div className="flex flex-col">
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">보유 수량</span>
                         <span className="font-mono font-medium">{asset.quantity.toLocaleString()}</span>
@@ -86,7 +86,7 @@ export function MobileAssetCard({
                     </div>
                 </div>
 
-                <div className="flex justify-between items-center mt-3">
+                <div className="flex justify-between items-center mt-2">
                     <div className="flex flex-col">
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">평가 가치</span>
                         <span className="font-bold text-xl text-primary">{formatCurrency(valuation)}</span>

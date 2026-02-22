@@ -145,7 +145,10 @@ export default function Home() {
   const [assets, setAssets] = useState<Asset[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [tags, setTags] = useState<Tag[]>([])
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all')
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'all'
+    return localStorage.getItem('moneymoney_category') || 'all'
+  })
   const [baseCurrency, setBaseCurrency] = useState<'KRW' | 'USD'>(() => {
     if (typeof window === 'undefined') return 'KRW'
     return (localStorage.getItem('moneymoney_currency') as 'KRW' | 'USD') || 'KRW'
@@ -173,6 +176,16 @@ export default function Home() {
         setAssets(assetsData)
         setCategories(categoriesData)
         setTags(tagsData)
+
+        // 저장된 카테고리 ID가 실제로 존재하는지 검증 (삭제됐을 경우 전체로 fallback)
+        const savedCategory = localStorage.getItem('moneymoney_category')
+        if (savedCategory && savedCategory !== 'all') {
+          const exists = categoriesData.some((c: { id: string }) => c.id === savedCategory)
+          if (!exists) {
+            setSelectedCategoryId('all')
+            localStorage.removeItem('moneymoney_category')
+          }
+        }
       } catch (error) {
         console.error('Failed to fetch data:', error)
       } finally {
@@ -249,11 +262,16 @@ export default function Home() {
     }
   }
 
-  // 포트폴리오 요약 계산
+  const filteredAssets = useMemo(() => {
+    if (selectedCategoryId === 'all') return assets
+    return assets.filter(a => a.categoryId === selectedCategoryId)
+  }, [assets, selectedCategoryId])
+
+  // 포트폴리오 요약 계산 (선택된 카테고리 기준)
   const summary = useMemo(() => {
     let currentTotalValue = 0
 
-    assets.forEach(asset => {
+    filteredAssets.forEach(asset => {
       const priceInfo = prices[asset.symbol]
       if (priceInfo) {
         const priceInBase = getPriceInBase(priceInfo.currentPrice, asset.exchange)
@@ -264,12 +282,7 @@ export default function Home() {
     return {
       currentTotalValue,
     }
-  }, [assets, prices, baseCurrency, exchangeRate])
-
-  const filteredAssets = useMemo(() => {
-    if (selectedCategoryId === 'all') return assets
-    return assets.filter(a => a.categoryId === selectedCategoryId)
-  }, [assets, selectedCategoryId])
+  }, [filteredAssets, prices, baseCurrency, exchangeRate])
 
   if (authLoading || !user || user.role !== 'USER' || dataLoading) return (
     <div className="flex items-center justify-center min-h-screen">
@@ -466,10 +479,24 @@ export default function Home() {
       <main className="flex flex-col gap-8">
         <div className="grid gap-6 md:grid-cols-1">
           <Card className="hover:shadow-lg transition-all border-l-4 border-l-primary bg-primary/5">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                <Wallet className="h-4 w-4" /> 현재 총 자산 가치
-              </CardTitle>
+            <CardHeader className="pb-2 flex flex-row items-start justify-between space-y-0">
+              <div>
+                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                  <Wallet className="h-4 w-4" />
+                  {selectedCategoryId === 'all' ? '현재 총 자산 가치' : `${getCategoryName(selectedCategoryId)} 자산 가치`}
+                </CardTitle>
+              </div>
+              <Select value={selectedCategoryId} onValueChange={(v) => { setSelectedCategoryId(v); if (v === 'all') localStorage.removeItem('moneymoney_category'); else localStorage.setItem('moneymoney_category', v) }}>
+                <SelectTrigger className="w-[130px] h-8 text-xs shrink-0">
+                  <SelectValue placeholder="카테고리 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  {categories.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </CardHeader>
             <CardContent>
               <div className="text-5xl font-extrabold tracking-tighter text-primary">
@@ -488,17 +515,6 @@ export default function Home() {
                   {selectedCategoryId === 'all' ? '전체 카테고리' : `${getCategoryName(selectedCategoryId)} 카테고리`} 내의 태그 분포
                 </CardDescription>
               </div>
-              <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
-                <SelectTrigger className="w-[140px] h-8 text-xs">
-                  <SelectValue placeholder="카테고리 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  {categories.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </CardHeader>
             <CardContent>
               <AssetAllocationChart
@@ -528,15 +544,15 @@ export default function Home() {
             <CardDescription>현재 티커와 수량 기반 자동 시세 반영 중</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            {assets.length === 0 ? (
+            {filteredAssets.length === 0 ? (
               <div className="py-20 text-center text-muted-foreground border-2 border-dashed m-6 rounded-xl bg-muted/5">
-                아직 등록된 자산이 없습니다. '종목 추가' 버튼을 눌러 자산을 등록해 보세요.
+                {assets.length === 0 ? "아직 등록된 자산이 없습니다. '종목 추가' 버튼을 눌러 자산을 등록해 보세요." : "선택한 카테고리에 자산이 없습니다."}
               </div>
             ) : (
               <>
                 {/* Mobile View */}
                 <div className="block md:hidden space-y-4 p-4 bg-muted/20">
-                  {assets.map((asset) => {
+                  {filteredAssets.map((asset) => {
                     const priceInfo = prices[asset.symbol]
                     const currentPrice = priceInfo?.currentPrice || 0
                     const valuationInBase = asset.quantity * getPriceInBase(currentPrice, asset.exchange)
@@ -577,7 +593,7 @@ export default function Home() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {assets.map((asset) => {
+                      {filteredAssets.map((asset) => {
                         const priceInfo = prices[asset.symbol]
                         const currentPrice = priceInfo?.currentPrice || 0
                         const valuationInBase = asset.quantity * getPriceInBase(currentPrice, asset.exchange)
