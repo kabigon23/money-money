@@ -64,24 +64,32 @@ export function AssetAllocationChart({ assets, tags, prices, baseCurrency, excha
         return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
     }, [combos])
 
-    const getPriceInBase = (price: number, assetExchange: 'US' | 'KR' | 'CRYPTO') => {
+    const isCashExchange = (ex: string) => ex === 'CASH_KRW' || ex === 'CASH_USD'
+
+    const getPriceInBase = (price: number, assetExchange: string) => {
         if (baseCurrency === 'KRW') {
-            return (assetExchange === 'US' || assetExchange === 'CRYPTO') ? price * exchangeRate : price
+            return (assetExchange === 'US' || assetExchange === 'CRYPTO' || assetExchange === 'CASH_USD') ? price * exchangeRate : price
         } else {
-            return assetExchange === 'KR' ? price / exchangeRate : price
+            return (assetExchange === 'KR' || assetExchange === 'CASH_KRW') ? price / exchangeRate : price
         }
     }
 
     const tagData = tags.map(tag => {
         const value = assets
             .filter(a => a.tagId === tag.id)
-            .reduce((sum, a) => sum + a.quantity * getPriceInBase(prices[a.symbol]?.currentPrice || 0, a.exchange), 0)
+            .reduce((sum, a) => {
+                const price = isCashExchange(a.exchange) ? 1 : (prices[a.symbol]?.currentPrice || 0)
+                return sum + a.quantity * getPriceInBase(price, a.exchange)
+            }, 0)
         return { name: tag.name, value, color: tag.color }
     }).filter(d => d.value > 0)
 
     const noTagValue = assets
         .filter(a => !a.tagId)
-        .reduce((sum, a) => sum + a.quantity * getPriceInBase(prices[a.symbol]?.currentPrice || 0, a.exchange), 0)
+        .reduce((sum, a) => {
+            const price = isCashExchange(a.exchange) ? 1 : (prices[a.symbol]?.currentPrice || 0)
+            return sum + a.quantity * getPriceInBase(price, a.exchange)
+        }, 0)
 
     if (noTagValue > 0) tagData.push({ name: '기타 (태그 없음)', value: noTagValue, color: '#94A3B8' })
 

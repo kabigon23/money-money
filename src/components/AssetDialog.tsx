@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Minus, History, Clock, ArrowRight } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, SubmitHandler } from 'react-hook-form'
@@ -34,11 +34,22 @@ import {
 import { Asset, Category, Tag, Transaction } from '@/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+const CASH_EXCHANGES = ['CASH_KRW', 'CASH_USD'] as const
+type CashExchange = typeof CASH_EXCHANGES[number]
+
+const isCash = (exchange: string): exchange is CashExchange =>
+    CASH_EXCHANGES.includes(exchange as CashExchange)
+
+const CASH_META: Record<CashExchange, { symbol: string; name: string; unit: string; label: string }> = {
+    CASH_KRW: { symbol: 'CASH_KRW', name: '원화 현금', unit: '원', label: '원화 (KRW)' },
+    CASH_USD: { symbol: 'CASH_USD', name: '달러 현금', unit: 'USD', label: '달러 (USD)' },
+}
+
 const formSchema = z.object({
     symbol: z.string().min(1, '종목 코드를 입력하세요.'),
     name: z.string().min(1, '종목명을 입력하세요.'),
     quantity: z.coerce.number().min(0, '수량은 0 이상이어야 합니다.'),
-    exchange: z.enum(['US', 'KR', 'CRYPTO']),
+    exchange: z.enum(['US', 'KR', 'CRYPTO', 'CASH_KRW', 'CASH_USD']),
     categoryId: z.string().min(1, '카테고리를 선택하세요.'),
     tagId: z.string().nullable().default(null),
 })
@@ -78,6 +89,17 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
         },
     })
 
+    const watchedExchange = form.watch('exchange')
+
+    // 현금 자산 선택 시 symbol/name 자동 설정
+    useEffect(() => {
+        if (!isEdit && isCash(watchedExchange)) {
+            const meta = CASH_META[watchedExchange as CashExchange]
+            form.setValue('symbol', meta.symbol)
+            form.setValue('name', meta.name)
+        }
+    }, [watchedExchange, isEdit, form])
+
     const recordTransaction = (type: 'BUY' | 'SELL' | 'EDIT', amount: number, totalAfter: number) => {
         const newTransaction: Transaction = {
             id: Math.random().toString(36).substr(2, 9),
@@ -92,17 +114,13 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
     const onSubmit: SubmitHandler<FormValues> = (values) => {
         let finalHistory = history
         if (isEdit && initialAsset) {
-            // 이번 세션에서 새로 추가된 트랜잭션들이 수량에 미치는 영향 계산
             const sessionTransactions = history.slice(0, history.length - (initialAsset.history?.length || 0))
             const netAmountFromTransactions = sessionTransactions.reduce((acc, t) => {
                 if (t.type === 'BUY') return acc + t.amount
                 if (t.type === 'SELL') return acc - t.amount
                 return acc
             }, 0)
-
             const expectedQuantity = initialAsset.quantity + netAmountFromTransactions
-
-            // 예상 수량과 최종 수량이 다르면 수동 수정으로 간주하여 EDIT 기록 추가
             if (values.quantity !== expectedQuantity) {
                 const diff = values.quantity - expectedQuantity
                 const newTransaction: Transaction = {
@@ -115,8 +133,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                 finalHistory = [newTransaction, ...history]
             }
             onSave({ ...initialAsset, ...values, history: finalHistory, updatedAt: Date.now() })
-        }
-        else {
+        } else {
             onSave(values as any)
         }
         setOpen(false)
@@ -125,6 +142,10 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
             setHistory([])
         }
     }
+
+    const isCashAsset = isCash(watchedExchange)
+    const cashMeta = isCashAsset ? CASH_META[watchedExchange as CashExchange] : null
+    const quantityUnit = cashMeta?.unit ?? '주/개'
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -163,17 +184,22 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                         name="exchange"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>시장</FormLabel>
-                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <FormLabel>시장 / 유형</FormLabel>
+                                                <Select
+                                                    onValueChange={field.onChange}
+                                                    defaultValue={field.value}
+                                                >
                                                     <FormControl>
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="시장 선택" />
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
-                                                        <SelectItem value="US">미국 (US)</SelectItem>
-                                                        <SelectItem value="KR">한국 (KR)</SelectItem>
-                                                        <SelectItem value="CRYPTO">가상자산 (Crypto)</SelectItem>
+                                                        <SelectItem value="US">🇺🇸 미국 (US)</SelectItem>
+                                                        <SelectItem value="KR">🇰🇷 한국 (KR)</SelectItem>
+                                                        <SelectItem value="CRYPTO">₿ 가상자산</SelectItem>
+                                                        <SelectItem value="CASH_KRW">💵 현금 · 원화 (KRW)</SelectItem>
+                                                        <SelectItem value="CASH_USD">💵 현금 · 달러 (USD)</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                                 <FormMessage />
@@ -206,12 +232,24 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                     />
                                 </div>
 
-                                {/* 종목 검색 (추가 모드에서만) */}
-                                {!isEdit && (
+                                {/* 현금 자산 안내 패널 */}
+                                {isCashAsset && (
+                                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-1">
+                                        <p className="text-xs font-bold text-emerald-700">
+                                            💵 현금 자산 — {cashMeta!.label}
+                                        </p>
+                                        <p className="text-xs text-emerald-600">
+                                            종목 코드·이름이 자동 설정됩니다. 보유 금액({cashMeta!.unit})을 아래에 입력하세요.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* 종목 검색 (추가 모드 + 현금 아닐 때만) */}
+                                {!isEdit && !isCashAsset && (
                                     <div className="rounded-xl border bg-slate-50 p-3 space-y-1">
                                         <p className="text-xs font-bold text-slate-500 mb-2">🔍 종목 검색으로 빠르게 입력</p>
                                         <TickerSearch
-                                            exchange={form.watch('exchange') as 'US' | 'KR' | 'CRYPTO'}
+                                            exchange={watchedExchange as 'US' | 'KR' | 'CRYPTO'}
                                             onSelect={(result: TickerResult) => {
                                                 form.setValue('symbol', result.symbol)
                                                 form.setValue('name', result.name)
@@ -220,6 +258,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                     </div>
                                 )}
 
+                                {/* 종목 코드 / 이름 (현금이면 비활성화) */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
@@ -228,7 +267,12 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                             <FormItem>
                                                 <FormLabel>종목 코드 (티커)</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="AAPL" {...field} />
+                                                    <Input
+                                                        placeholder="AAPL"
+                                                        {...field}
+                                                        disabled={isCashAsset && !isEdit}
+                                                        className={isCashAsset && !isEdit ? 'opacity-60 bg-slate-100' : ''}
+                                                    />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -241,7 +285,12 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                             <FormItem>
                                                 <FormLabel>종목명</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="애플" {...field} />
+                                                    <Input
+                                                        placeholder="애플"
+                                                        {...field}
+                                                        disabled={isCashAsset && !isEdit}
+                                                        className={isCashAsset && !isEdit ? 'opacity-60 bg-slate-100' : ''}
+                                                    />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -254,19 +303,23 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                     name="quantity"
                                     render={({ field }) => (
                                         <FormItem className="bg-slate-50 p-4 rounded-2xl border">
-                                            <FormLabel className="text-slate-500 font-bold mb-2 block">보유 수량 관리</FormLabel>
+                                            <FormLabel className="text-slate-500 font-bold mb-2 block">
+                                                {isCashAsset ? `보유 금액 (${quantityUnit})` : '보유 수량 관리'}
+                                            </FormLabel>
                                             <div className="flex flex-col gap-3">
                                                 <div className="flex items-center gap-2">
                                                     <FormControl>
                                                         <Input type="number" step="any" {...field} className="font-black text-2xl h-14 bg-white border-2" />
                                                     </FormControl>
-                                                    <span className="font-bold text-slate-400">주/개</span>
+                                                    <span className="font-bold text-slate-400">{quantityUnit}</span>
                                                 </div>
 
                                                 {isEdit && (
                                                     <div className="flex flex-col gap-2 p-3 bg-white rounded-xl border-2 border-primary/10 shadow-sm transition-all">
                                                         <div className="flex items-center justify-between px-1">
-                                                            <span className="text-xs font-black text-primary">거래량 입력</span>
+                                                            <span className="text-xs font-black text-primary">
+                                                                {isCashAsset ? '금액 조정' : '거래량 입력'}
+                                                            </span>
                                                             <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                                                 <Clock className="w-3 h-3" /> Quick Action
                                                             </div>
@@ -291,7 +344,8 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                                                         recordTransaction('BUY', adjustmentAmount, next)
                                                                     }}
                                                                 >
-                                                                    <Plus className="w-4 h-4" /> 매수
+                                                                    <Plus className="w-4 h-4" />
+                                                                    {isCashAsset ? '입금' : '매수'}
                                                                 </Button>
                                                                 <Button
                                                                     type="button"
@@ -304,7 +358,8 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                                                         recordTransaction('SELL', adjustmentAmount, next)
                                                                     }}
                                                                 >
-                                                                    <Minus className="w-4 h-4" /> 매도
+                                                                    <Minus className="w-4 h-4" />
+                                                                    {isCashAsset ? '출금' : '매도'}
                                                                 </Button>
                                                             </div>
                                                         </div>
@@ -376,8 +431,8 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                                                     'text-amber-600'
                                                             }`}>
                                                             {item.type === 'INITIAL' ? '초기 설정' :
-                                                                item.type === 'BUY' ? '매수 (+)' :
-                                                                    item.type === 'SELL' ? '매도 (-)' : '수량 직접 수정'}
+                                                                item.type === 'BUY' ? (isCashAsset ? '입금 (+)' : '매수 (+)') :
+                                                                    item.type === 'SELL' ? (isCashAsset ? '출금 (-)' : '매도 (-)') : '수량 직접 수정'}
                                                         </span>
                                                         <span className="text-[10px] text-muted-foreground font-mono">
                                                             {new Date(item.timestamp).toLocaleString()}
@@ -388,9 +443,11 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-bold bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                                    <span>수량 변화</span>
+                                                    <span>{isCashAsset ? '금액 변화' : '수량 변화'}</span>
                                                     <ArrowRight className="w-2 h-2" />
-                                                    <span className="text-slate-600">{item.totalAfter.toLocaleString()} 주/개</span>
+                                                    <span className="text-slate-600">
+                                                        {item.totalAfter.toLocaleString()} {quantityUnit}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>

@@ -1,4 +1,4 @@
-export type Exchange = 'US' | 'KR' | 'CRYPTO'
+export type Exchange = 'US' | 'KR' | 'CRYPTO' | 'CASH_KRW' | 'CASH_USD'
 
 export interface Category {
     id: string

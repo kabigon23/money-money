@@ -245,12 +245,19 @@ export default function Home() {
     }
   }
 
+  // 현금 자산 헬퍼
+  const isCashAsset = (exchange: string) => exchange === 'CASH_KRW' || exchange === 'CASH_USD'
+
   // 통화 변환 헬퍼
-  const getPriceInBase = (price: number, assetExchange: 'US' | 'KR' | 'CRYPTO') => {
+  const getPriceInBase = (price: number, assetExchange: string) => {
     if (baseCurrency === 'KRW') {
-      return (assetExchange === 'US' || assetExchange === 'CRYPTO') ? price * exchangeRate : price
+      return (assetExchange === 'US' || assetExchange === 'CRYPTO' || assetExchange === 'CASH_USD')
+        ? price * exchangeRate
+        : price
     } else {
-      return assetExchange === 'KR' ? price / exchangeRate : price
+      return (assetExchange === 'KR' || assetExchange === 'CASH_KRW')
+        ? price / exchangeRate
+        : price
     }
   }
 
@@ -272,16 +279,13 @@ export default function Home() {
     let currentTotalValue = 0
 
     filteredAssets.forEach(asset => {
-      const priceInfo = prices[asset.symbol]
-      if (priceInfo) {
-        const priceInBase = getPriceInBase(priceInfo.currentPrice, asset.exchange)
-        currentTotalValue += asset.quantity * priceInBase
-      }
+      // 현금 자산: 수량 자체가 해당 통화 금액 (currentPrice = 1)
+      const currentPrice = isCashAsset(asset.exchange) ? 1 : (prices[asset.symbol]?.currentPrice || 0)
+      const priceInBase = getPriceInBase(currentPrice, asset.exchange)
+      currentTotalValue += asset.quantity * priceInBase
     })
 
-    return {
-      currentTotalValue,
-    }
+    return { currentTotalValue }
   }, [filteredAssets, prices, baseCurrency, exchangeRate])
 
   if (authLoading || !user || user.role !== 'USER' || dataLoading) return (
@@ -554,9 +558,9 @@ export default function Home() {
                 <div className="block md:hidden space-y-4 p-4 bg-muted/20">
                   {filteredAssets.map((asset) => {
                     const priceInfo = prices[asset.symbol]
-                    const currentPrice = priceInfo?.currentPrice || 0
+                    const currentPrice = isCashAsset(asset.exchange) ? 1 : (priceInfo?.currentPrice || 0)
                     const valuationInBase = asset.quantity * getPriceInBase(currentPrice, asset.exchange)
-                    const isUSDNative = asset.exchange === 'US' || asset.exchange === 'CRYPTO'
+                    const isUSDNative = asset.exchange === 'US' || asset.exchange === 'CRYPTO' || asset.exchange === 'CASH_USD'
 
                     return (
                       <MobileAssetCard
@@ -595,7 +599,7 @@ export default function Home() {
                     <TableBody>
                       {filteredAssets.map((asset) => {
                         const priceInfo = prices[asset.symbol]
-                        const currentPrice = priceInfo?.currentPrice || 0
+                        const currentPrice = isCashAsset(asset.exchange) ? 1 : (priceInfo?.currentPrice || 0)
                         const valuationInBase = asset.quantity * getPriceInBase(currentPrice, asset.exchange)
 
                         return (
@@ -603,10 +607,12 @@ export default function Home() {
                             <TableCell className="px-6">
                               <div className="flex flex-col gap-1">
                                 <Badge
-                                  variant={asset.exchange === 'US' ? 'default' : asset.exchange === 'CRYPTO' ? 'outline' : 'secondary'}
-                                  className={`w-fit ${asset.exchange === 'CRYPTO' ? 'bg-orange-500/10 text-orange-600 border-orange-200' : ''}`}
+                                  variant={asset.exchange === 'US' ? 'default' : (asset.exchange === 'CRYPTO' || isCashAsset(asset.exchange)) ? 'outline' : 'secondary'}
+                                  className={`w-fit ${asset.exchange === 'CRYPTO' ? 'bg-orange-500/10 text-orange-600 border-orange-200' :
+                                      isCashAsset(asset.exchange) ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : ''
+                                    }`}
                                 >
-                                  {asset.exchange}
+                                  {asset.exchange === 'CASH_KRW' ? '현금 KRW' : asset.exchange === 'CASH_USD' ? '현금 USD' : asset.exchange}
                                 </Badge>
                                 <span className="text-xs font-semibold text-muted-foreground">
                                   {getCategoryName(asset.categoryId)}
@@ -621,7 +627,11 @@ export default function Home() {
                             </TableCell>
                             <TableCell className="font-mono">{asset.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}</TableCell>
                             <TableCell className="font-mono">
-                              {currentPrice > 0 ? (
+                              {isCashAsset(asset.exchange) ? (
+                                <span className="text-xs text-muted-foreground italic">
+                                  {asset.exchange === 'CASH_KRW' ? '원화 현금' : '달러 현금'}
+                                </span>
+                              ) : currentPrice > 0 ? (
                                 <div className="flex flex-col">
                                   <span className="flex items-center gap-1">
                                     {(asset.exchange === 'US' || asset.exchange === 'CRYPTO') ? '$' : ''}
@@ -705,6 +715,6 @@ export default function Home() {
           </CardContent>
         </Card>
       </main>
-    </div>
+    </div >
   )
 }

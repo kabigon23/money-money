@@ -70,12 +70,20 @@ export function MobileAssetCard({
                     <div className="flex flex-col text-right">
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">현재가</span>
                         <span className="font-mono font-medium">
-                            {isUSDNative ? '$' : ''}
-                            {currentPrice.toLocaleString(undefined, {
-                                minimumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0,
-                                maximumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0
-                            })}
-                            {asset.exchange === 'KR' ? '원' : ''}
+                            {(asset.exchange === 'CASH_KRW' || asset.exchange === 'CASH_USD') ? (
+                                <span className="text-xs text-muted-foreground italic">
+                                    {asset.exchange === 'CASH_KRW' ? '원화 현금' : '달러 현금'}
+                                </span>
+                            ) : (
+                                <>
+                                    {isUSDNative ? '$' : ''}
+                                    {currentPrice.toLocaleString(undefined, {
+                                        minimumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0,
+                                        maximumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0
+                                    })}
+                                    {asset.exchange === 'KR' ? '원' : ''}
+                                </>
+                            )}
                         </span>
                         {priceChange && (
                             <span className={`text-xs font-bold flex items-center justify-end gap-0.5 mt-0.5 ${priceChange.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
