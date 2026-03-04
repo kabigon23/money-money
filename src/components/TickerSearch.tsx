@@ -169,7 +169,11 @@ export function TickerSearch({ onSelect, exchange, includeIndex }: TickerSearchP
                         </button>
                     )}
                     <Input
-                        placeholder="종목명 또는 티커 검색 (예: 애플, AAPL, 비트코인)"
+                        placeholder={
+                            exchange === 'KR'
+                                ? '종목코드로 검색 (예: 005930, 000660, 379800)'
+                                : '종목명 또는 티커 검색 (예: 애플, AAPL, 비트코인)'
+                        }
                         className="pl-9 pr-9"
                         value={query}
                         onChange={e => { setQuery(e.target.value); if (!e.target.value) setShowDropdown(false) }}
@@ -190,9 +194,20 @@ export function TickerSearch({ onSelect, exchange, includeIndex }: TickerSearchP
                                     className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 cursor-pointer border-b last:border-0 transition-colors"
                                     onMouseDown={() => handleSelect(item)}
                                 >
-                                    <span className="font-black text-sm w-24 shrink-0 text-slate-800">{item.symbol}</span>
-                                    <span className="text-sm text-slate-600 flex-1 truncate">{item.name}</span>
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TYPE_COLOR_MAP[item.type] || 'bg-slate-100 text-slate-600'}`}>
+                                    {exchange === 'KR' ? (
+                                        /* KR: 종목명 주로, 코드 보조 */
+                                        <>
+                                            <span className="font-bold text-sm text-slate-800 flex-1 truncate">{item.name}</span>
+                                            <span className="font-mono text-xs text-slate-400 shrink-0">{item.symbol}</span>
+                                        </>
+                                    ) : (
+                                        /* US/CRYPTO: 티커 주로, 이름 보조 */
+                                        <>
+                                            <span className="font-black text-sm w-24 shrink-0 text-slate-800">{item.symbol}</span>
+                                            <span className="text-sm text-slate-600 flex-1 truncate">{item.name}</span>
+                                        </>
+                                    )}
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${TYPE_COLOR_MAP[item.type] || 'bg-slate-100 text-slate-600'}`}>
                                         {TYPE_LABEL_MAP[item.type] || item.type}
                                     </span>
                                 </li>
@@ -220,9 +235,15 @@ export function TickerSearch({ onSelect, exchange, includeIndex }: TickerSearchP
                                 type="button"
                                 onClick={() => handleSelect(item)}
                                 className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-white hover:bg-slate-50 hover:border-slate-300 transition-all text-left shadow-sm"
-                                title={item.name}
+                                title={exchange === 'KR' ? item.symbol : item.name}
                             >
-                                <span className="text-xs font-black text-slate-800">{item.symbol}</span>
+                                {exchange === 'KR' ? (
+                                    /* KR: 종목명을 크게, 코드는 숨김 */
+                                    <span className="text-xs font-bold text-slate-800">{item.name}</span>
+                                ) : (
+                                    /* US/CRYPTO: 티커를 크게 */
+                                    <span className="text-xs font-black text-slate-800">{item.symbol}</span>
+                                )}
                                 <span className={`text-[10px] font-semibold px-1 py-0.5 rounded ${TYPE_COLOR[item.type] || 'bg-slate-100 text-slate-500'}`}>
                                     {TYPE_LABEL[item.type] || item.type}
                                 </span>

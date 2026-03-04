@@ -40,6 +40,20 @@ export interface PriceInfo {
     currentPrice: number
     change: number
     changePercent: number
+    // 정규장
+    regularPrice?: number
+    regularChange?: number
+    regularChangePercent?: number
+    // 프리장 (Pre-market)
+    preMarketPrice?: number | null
+    preMarketChange?: number | null
+    preMarketChangePercent?: number | null
+    // 에프터장 (After-hours)
+    postMarketPrice?: number | null
+    postMarketChange?: number | null
+    postMarketChangePercent?: number | null
+    // 현재 세션
+    marketSession?: 'PRE' | 'REGULAR' | 'POST' | 'NIGHT' | 'CLOSED'
     lastUpdated: number
 }
 

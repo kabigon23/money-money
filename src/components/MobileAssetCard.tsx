@@ -1,4 +1,4 @@
-import { Asset, Category, Tag } from '@/types'
+import { Asset, Category, Tag, PriceInfo } from '@/types'
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,7 @@ interface MobileAssetCardProps {
     asset: Asset
     currentPrice: number
     priceChange?: { change: number; changePercent: number }
+    priceInfo?: PriceInfo
     valuation: number
     categoryName: string
     tag?: Tag
@@ -24,6 +25,7 @@ export function MobileAssetCard({
     asset,
     currentPrice,
     priceChange,
+    priceInfo,
     valuation,
     categoryName,
     tag,
@@ -40,12 +42,16 @@ export function MobileAssetCard({
                 <div className="flex justify-between items-start mb-2">
                     <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
-                            <span className="font-bold text-lg text-primary">{asset.symbol}</span>
+                            <span className="font-bold text-lg text-primary">
+                                {asset.exchange === 'KR' ? asset.name : asset.symbol}
+                            </span>
                             <Badge variant="outline" className="text-[10px] h-5 px-1.5">
                                 {asset.exchange}
                             </Badge>
                         </div>
-                        <span className="text-sm text-muted-foreground font-medium">{asset.name}</span>
+                        <span className="text-sm text-muted-foreground font-medium">
+                            {asset.exchange === 'KR' ? asset.symbol : asset.name}
+                        </span>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                         <Badge variant="secondary" className="text-[10px] h-5">
@@ -69,6 +75,16 @@ export function MobileAssetCard({
                     </div>
                     <div className="flex flex-col text-right">
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">현재가</span>
+                        {/* 세션 배지 */}
+                        {asset.exchange === 'US' && priceInfo?.marketSession && priceInfo.marketSession !== 'REGULAR' && (
+                            <span className={`text-[10px] font-black self-end px-1.5 py-0.5 rounded mb-0.5 ${priceInfo.marketSession === 'PRE' ? 'bg-violet-500/15 text-violet-500'
+                                    : priceInfo.marketSession === 'POST' ? 'bg-orange-500/15 text-orange-500'
+                                        : priceInfo.marketSession === 'NIGHT' ? 'bg-cyan-500/15 text-cyan-500'
+                                            : 'bg-muted text-muted-foreground'
+                                }`}>
+                                {priceInfo.marketSession === 'PRE' ? '프리장' : priceInfo.marketSession === 'POST' ? '에프터장' : priceInfo.marketSession === 'NIGHT' ? '나이트' : '장마감'}
+                            </span>
+                        )}
                         <span className="font-mono font-medium">
                             {(asset.exchange === 'CASH_KRW' || asset.exchange === 'CASH_USD') ? (
                                 <span className="text-xs text-muted-foreground italic">
@@ -78,8 +94,8 @@ export function MobileAssetCard({
                                 <>
                                     {isUSDNative ? '$' : ''}
                                     {currentPrice.toLocaleString(undefined, {
-                                        minimumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0,
-                                        maximumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0
+                                        minimumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 2,
+                                        maximumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 2
                                     })}
                                     {asset.exchange === 'KR' ? '원' : ''}
                                 </>
@@ -89,6 +105,12 @@ export function MobileAssetCard({
                             <span className={`text-xs font-bold flex items-center justify-end gap-0.5 mt-0.5 ${priceChange.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                 {priceChange.change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                                 {priceChange.change >= 0 ? '+' : ''}{priceChange.changePercent.toFixed(2)}%
+                            </span>
+                        )}
+                        {/* 장외일 때 정규장 종가 */}
+                        {asset.exchange === 'US' && priceInfo?.marketSession && priceInfo.marketSession !== 'REGULAR' && priceInfo.regularPrice && (
+                            <span className="text-[10px] text-muted-foreground">
+                                종가 ${priceInfo.regularPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                         )}
                     </div>

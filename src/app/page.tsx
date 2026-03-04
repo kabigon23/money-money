@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon } from 'lucide-react'
+import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key } from 'lucide-react'
+import { UserPasswordChangeDialog } from '@/components/UserPasswordChangeDialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AssetDialog } from '@/components/AssetDialog'
 import { MobileAssetCard } from '@/components/MobileAssetCard'
@@ -450,6 +451,18 @@ export default function Home() {
               </span>
               <span className="text-[10px] text-muted-foreground tracking-tighter uppercase hidden md:block">Standard User</span>
             </div>
+            <UserPasswordChangeDialog
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="비밀번호 변경"
+                  className="rounded-full h-8 w-8 md:h-9 md:w-9 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10"
+                >
+                  <Key className="w-4 h-4" />
+                </Button>
+              }
+            />
             <Button
               variant="ghost"
               size="icon"
@@ -568,6 +581,7 @@ export default function Home() {
                         asset={asset}
                         currentPrice={currentPrice}
                         priceChange={priceInfo ? { change: priceInfo.change, changePercent: priceInfo.changePercent } : undefined}
+                        priceInfo={priceInfo}
                         valuation={valuationInBase}
                         categoryName={getCategoryName(asset.categoryId)}
                         tag={asset.tagId ? getTag(asset.tagId) : undefined}
@@ -609,7 +623,7 @@ export default function Home() {
                                 <Badge
                                   variant={asset.exchange === 'US' ? 'default' : (asset.exchange === 'CRYPTO' || isCashAsset(asset.exchange)) ? 'outline' : 'secondary'}
                                   className={`w-fit ${asset.exchange === 'CRYPTO' ? 'bg-orange-500/10 text-orange-600 border-orange-200' :
-                                      isCashAsset(asset.exchange) ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : ''
+                                    isCashAsset(asset.exchange) ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : ''
                                     }`}
                                 >
                                   {asset.exchange === 'CASH_KRW' ? '현금 KRW' : asset.exchange === 'CASH_USD' ? '현금 USD' : asset.exchange}
@@ -621,8 +635,12 @@ export default function Home() {
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col">
-                                <span className="font-bold text-primary">{asset.name}</span>
-                                <span className="text-xs text-muted-foreground tracking-widest">{asset.symbol}</span>
+                                <span className="font-bold text-primary">
+                                  {asset.exchange === 'KR' ? asset.name : asset.symbol}
+                                </span>
+                                <span className="text-xs text-muted-foreground tracking-widest">
+                                  {asset.exchange === 'KR' ? asset.symbol : asset.name}
+                                </span>
                               </div>
                             </TableCell>
                             <TableCell className="font-mono">{asset.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}</TableCell>
@@ -632,19 +650,43 @@ export default function Home() {
                                   {asset.exchange === 'CASH_KRW' ? '원화 현금' : '달러 현금'}
                                 </span>
                               ) : currentPrice > 0 ? (
-                                <div className="flex flex-col">
+                                <div className="flex flex-col gap-0.5">
+                                  {/* 세션 배지 (US만) */}
+                                  {asset.exchange === 'US' && priceInfo?.marketSession && priceInfo.marketSession !== 'REGULAR' && (
+                                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded w-fit ${priceInfo.marketSession === 'PRE'
+                                        ? 'bg-violet-500/15 text-violet-500'
+                                        : priceInfo.marketSession === 'POST'
+                                          ? 'bg-orange-500/15 text-orange-500'
+                                          : priceInfo.marketSession === 'NIGHT'
+                                            ? 'bg-cyan-500/15 text-cyan-500'
+                                            : 'bg-muted text-muted-foreground'
+                                      }`}>
+                                      {priceInfo.marketSession === 'PRE' ? '프리장'
+                                        : priceInfo.marketSession === 'POST' ? '에프터장'
+                                          : priceInfo.marketSession === 'NIGHT' ? '나이트'
+                                            : '장마감'}
+                                    </span>
+                                  )}
+                                  {/* 실효 가격 */}
                                   <span className="flex items-center gap-1">
                                     {(asset.exchange === 'US' || asset.exchange === 'CRYPTO') ? '$' : ''}
                                     {currentPrice.toLocaleString(undefined, {
-                                      minimumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0,
-                                      maximumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 0
+                                      minimumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 2,
+                                      maximumFractionDigits: asset.exchange === 'CRYPTO' ? 2 : 2
                                     })}
                                     {asset.exchange === 'KR' ? '원' : ''}
                                   </span>
+                                  {/* 등락 */}
                                   {priceInfo && (
-                                    <span className={`text-xs font-bold flex items-center gap-0.5 mt-0.5 ${priceInfo.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                    <span className={`text-xs font-bold flex items-center gap-0.5 ${priceInfo.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                       {priceInfo.change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                                       {priceInfo.change >= 0 ? '+' : ''}{priceInfo.changePercent.toFixed(2)}%
+                                    </span>
+                                  )}
+                                  {/* 장외일 때 정규장 종가도 함께 표시 */}
+                                  {asset.exchange === 'US' && priceInfo?.marketSession && priceInfo.marketSession !== 'REGULAR' && priceInfo.regularPrice && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      종가 ${priceInfo.regularPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                   )}
                                 </div>
