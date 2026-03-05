@@ -654,17 +654,12 @@ export default function Home() {
                                   {/* 세션 배지 (US만) */}
                                   {asset.exchange === 'US' && priceInfo?.marketSession && priceInfo.marketSession !== 'REGULAR' && (
                                     <span className={`text-[10px] font-black px-1.5 py-0.5 rounded w-fit ${priceInfo.marketSession === 'PRE'
-                                        ? 'bg-violet-500/15 text-violet-500'
-                                        : priceInfo.marketSession === 'POST'
-                                          ? 'bg-orange-500/15 text-orange-500'
-                                          : priceInfo.marketSession === 'NIGHT'
-                                            ? 'bg-cyan-500/15 text-cyan-500'
-                                            : 'bg-muted text-muted-foreground'
+                                      ? 'bg-violet-500/15 text-violet-500'
+                                      : priceInfo.marketSession === 'POST'
+                                        ? 'bg-orange-500/15 text-orange-500'
+                                        : 'bg-muted text-muted-foreground'
                                       }`}>
-                                      {priceInfo.marketSession === 'PRE' ? '프리장'
-                                        : priceInfo.marketSession === 'POST' ? '에프터장'
-                                          : priceInfo.marketSession === 'NIGHT' ? '나이트'
-                                            : '장마감'}
+                                      {priceInfo.marketSession === 'PRE' ? '프리장' : priceInfo.marketSession === 'POST' ? '에프터장' : '장마감'}
                                     </span>
                                   )}
                                   {/* 실효 가격 */}

@@ -7,16 +7,15 @@ const yahooFinance = new YahooFinance();
 // Pre-market:  04:00 ~ 09:30  → KST 18:00 ~ 23:30
 // Regular:     09:30 ~ 16:00  → KST 23:30 ~ 06:00+1
 // After-hours: 16:00 ~ 20:00  → KST 06:00 ~ 10:00
-// Night:       20:00 ~ 04:00  → KST 10:00 ~ 18:00 (한국 낮시간)
 // 한국 시간 = EST + 14시간 (EDT 기준 +13h)
 
-function getMarketSession(quoteType: string | undefined, marketState: string | undefined): 'PRE' | 'REGULAR' | 'POST' | 'NIGHT' | 'CLOSED' {
+function getMarketSession(quoteType: string | undefined, marketState: string | undefined): 'PRE' | 'REGULAR' | 'POST' | 'CLOSED' {
     if (quoteType !== 'EQUITY' && quoteType !== 'ETF') return 'REGULAR'
     switch (marketState) {
         case 'PRE': return 'PRE'
         case 'REGULAR': return 'REGULAR'
-        case 'POST': return 'POST'
-        case 'POSTPOST': return 'NIGHT'
+        case 'POST':
+        case 'POSTPOST': return 'POST'
         default: return 'CLOSED'
     }
 }
@@ -56,8 +55,7 @@ export async function GET(request: NextRequest) {
                 effectivePrice = quote.preMarketPrice
                 effectiveChange = quote.preMarketChange ?? (quote.preMarketPrice - quote.regularMarketPrice)
                 effectiveChangePercent = quote.preMarketChangePercent ?? ((effectiveChange / quote.regularMarketPrice) * 100)
-            } else if ((session === 'POST' || session === 'NIGHT') && quote.postMarketPrice) {
-                // 에프터장(POST)과 나이트장(NIGHT) 모두 postMarketPrice 사용
+            } else if (session === 'POST' && quote.postMarketPrice) {
                 effectivePrice = quote.postMarketPrice
                 effectiveChange = quote.postMarketChange ?? (quote.postMarketPrice - quote.regularMarketPrice)
                 effectiveChangePercent = quote.postMarketChangePercent ?? ((effectiveChange / quote.regularMarketPrice) * 100)

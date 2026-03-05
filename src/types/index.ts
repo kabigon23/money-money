@@ -53,7 +53,7 @@ export interface PriceInfo {
     postMarketChange?: number | null
     postMarketChangePercent?: number | null
     // 현재 세션
-    marketSession?: 'PRE' | 'REGULAR' | 'POST' | 'NIGHT' | 'CLOSED'
+    marketSession?: 'PRE' | 'REGULAR' | 'POST' | 'CLOSED'
     lastUpdated: number
 }
 
