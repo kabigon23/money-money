@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key } from 'lucide-react'
+import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key, Plus } from 'lucide-react'
 import { UserPasswordChangeDialog } from '@/components/UserPasswordChangeDialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AssetDialog } from '@/components/AssetDialog'
@@ -27,6 +27,9 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 
 
+
+const CASH_CATEGORY_ID = '__CASH__'
+const isCashAsset = (exchange: string) => exchange === 'CASH_KRW' || exchange === 'CASH_USD'
 
 const INITIAL_ASSETS: Asset[] = [
   {
@@ -154,6 +157,10 @@ export default function Home() {
     if (typeof window === 'undefined') return 'KRW'
     return (localStorage.getItem('moneymoney_currency') as 'KRW' | 'USD') || 'KRW'
   })
+  const [includeCash, setIncludeCash] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('moneymoney_include_cash') !== 'false'
+  })
   const [dataLoading, setDataLoading] = useState(true)
 
   const { prices, exchangeRate, loading: pricesLoading } = useAssetPrices(assets)
@@ -170,13 +177,30 @@ export default function Home() {
           fetch(`/api/tags?userId=${user.id}`)
         ])
 
-        const assetsData = await assetsRes.json()
+        const assetsData: Asset[] = await assetsRes.json()
         const categoriesData = await categoriesRes.json()
         const tagsData = await tagsRes.json()
 
-        setAssets(assetsData)
+        // 현금 자산 마이그레이션: categoryId !== CASH_CATEGORY_ID 인 현금을 자동 보정
+        const hadMigration = assetsData.some(
+          (a) => isCashAsset(a.exchange) && a.categoryId !== CASH_CATEGORY_ID
+        )
+        const normalizedAssets = assetsData.map((a) =>
+          isCashAsset(a.exchange) && a.categoryId !== CASH_CATEGORY_ID
+            ? { ...a, categoryId: CASH_CATEGORY_ID, tagId: null }
+            : a
+        )
+        setAssets(normalizedAssets)
         setCategories(categoriesData)
         setTags(tagsData)
+
+        if (hadMigration) {
+          fetch(`/api/assets?userId=${user.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(normalizedAssets)
+          }).catch(console.error)
+        }
 
         // 저장된 카테고리 ID가 실제로 존재하는지 검증 (삭제됐을 경우 전체로 fallback)
         const savedCategory = localStorage.getItem('moneymoney_category')
@@ -246,9 +270,6 @@ export default function Home() {
     }
   }
 
-  // 현금 자산 헬퍼
-  const isCashAsset = (exchange: string) => exchange === 'CASH_KRW' || exchange === 'CASH_USD'
-
   // 통화 변환 헬퍼
   const getPriceInBase = (price: number, assetExchange: string) => {
     if (baseCurrency === 'KRW') {
@@ -270,24 +291,35 @@ export default function Home() {
     }
   }
 
+  const cashAssets = useMemo(() => {
+    return assets.filter(a => isCashAsset(a.exchange))
+  }, [assets])
+
   const filteredAssets = useMemo(() => {
-    if (selectedCategoryId === 'all') return assets
-    return assets.filter(a => a.categoryId === selectedCategoryId)
+    const nonCash = assets.filter(a => !isCashAsset(a.exchange))
+    if (selectedCategoryId === 'all') return nonCash
+    return nonCash.filter(a => a.categoryId === selectedCategoryId)
   }, [assets, selectedCategoryId])
 
-  // 포트폴리오 요약 계산 (선택된 카테고리 기준)
+  // 포트폴리오 요약 계산 (선택된 카테고리 기준 + 현금 토글)
   const summary = useMemo(() => {
     let currentTotalValue = 0
 
     filteredAssets.forEach(asset => {
-      // 현금 자산: 수량 자체가 해당 통화 금액 (currentPrice = 1)
-      const currentPrice = isCashAsset(asset.exchange) ? 1 : (prices[asset.symbol]?.currentPrice || 0)
+      const currentPrice = prices[asset.symbol]?.currentPrice || 0
       const priceInBase = getPriceInBase(currentPrice, asset.exchange)
       currentTotalValue += asset.quantity * priceInBase
     })
 
+    // 현금 포함 토글이 ON이면 현금셄 합산
+    if (includeCash) {
+      cashAssets.forEach(asset => {
+        currentTotalValue += asset.quantity * getPriceInBase(1, asset.exchange)
+      })
+    }
+
     return { currentTotalValue }
-  }, [filteredAssets, prices, baseCurrency, exchangeRate])
+  }, [filteredAssets, cashAssets, prices, baseCurrency, exchangeRate, includeCash])
 
   if (authLoading || !user || user.role !== 'USER' || dataLoading) return (
     <div className="flex items-center justify-center min-h-screen">
@@ -296,21 +328,27 @@ export default function Home() {
   )
 
   const saveAsset = async (data: Omit<Asset, 'id' | 'createdAt' | 'updatedAt'> | Asset) => {
+    // 현금 자산이면 categoryId, tagId 강제
+    const processedData = isCashAsset(data.exchange)
+      ? { ...data, categoryId: CASH_CATEGORY_ID, tagId: null as null }
+      : data
+
     let newAssets: Asset[]
-    if ('id' in data) {
-      // Update
-      newAssets = assets.map(a => a.id === data.id ? { ...data, updatedAt: Date.now() } : a)
+    if ('id' in processedData && typeof processedData.id === 'string') {
+      // Update (Asset 타입)
+      const asAsset = processedData as Asset
+      newAssets = assets.map(a => a.id === asAsset.id ? { ...asAsset, updatedAt: Date.now() } : a)
     } else {
       // Add
       const asset: Asset = {
-        ...data,
+        ...(processedData as Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>),
         id: Math.random().toString(36).substr(2, 9),
         history: [
           {
             id: Math.random().toString(36).substr(2, 9),
             type: 'INITIAL',
-            amount: data.quantity,
-            totalAfter: data.quantity,
+            amount: processedData.quantity,
+            totalAfter: processedData.quantity,
             timestamp: Date.now()
           }
         ],
@@ -540,6 +578,8 @@ export default function Home() {
                 prices={prices}
                 baseCurrency={baseCurrency}
                 exchangeRate={exchangeRate}
+                includeCash={includeCash}
+                cashAssets={cashAssets}
               />
             </CardContent>
           </Card>
@@ -749,6 +789,123 @@ export default function Home() {
                 </div>
               </>
             )}
+          </CardContent>
+        </Card>
+
+        {/* 현금 자산 독립 영역 */}
+        <Card className="overflow-hidden border-l-4 border-l-yellow-400">
+          <CardHeader className="pb-3" style={{ background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)' }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <span className="text-xl">💵</span> 현금 자산
+                </CardTitle>
+                <CardDescription className="mt-0.5 text-xs">
+                  원화 · 달러 현금 보유액 — 토글로 총평가액 및 원그래프 반영 여부를 설정하세요
+                </CardDescription>
+              </div>
+              {/* 포함/제외 토글 */}
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <span className={`text-xs font-bold transition-colors ${includeCash ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                  {includeCash ? '포함 중' : '제외 중'}
+                </span>
+                <div
+                  onClick={() => {
+                    const next = !includeCash
+                    setIncludeCash(next)
+                    localStorage.setItem('moneymoney_include_cash', String(next))
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors duration-200 ${
+                    includeCash ? 'bg-yellow-400' : 'bg-muted'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                    includeCash ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </div>
+              </label>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {cashAssets.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground border-2 border-dashed border-yellow-200 rounded-xl text-sm">
+                현금을 추가해 보세요 👇
+              </div>
+            ) : (
+              <div className="space-y-2 mb-3">
+                {cashAssets.map(asset => {
+                  const valueInBase = asset.quantity * getPriceInBase(1, asset.exchange)
+                  const isKRW = asset.exchange === 'CASH_KRW'
+                  return (
+                    <div key={asset.id} className="flex items-center justify-between p-3 rounded-xl bg-yellow-50/60 border border-yellow-100 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-yellow-100 flex items-center justify-center font-bold text-yellow-700 text-sm">
+                          {isKRW ? '₩' : '$'}
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm">{isKRW ? '원화 현금' : '달러 현금'}</div>
+                          <div className="text-xs text-muted-foreground font-mono">
+                            {isKRW
+                              ? `${Math.round(asset.quantity).toLocaleString()}원`
+                              : `$${asset.quantity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            }
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-base mr-1">{formatCurrency(valueInBase)}</span>
+                        <AssetDialog
+                          onSave={saveAsset}
+                          categories={categories}
+                          tags={tags}
+                          initialAsset={asset}
+                          isCashOnly
+                          trigger={
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-yellow-600 hover:bg-yellow-50">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          }
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteAsset(asset.id)}
+                          className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <div className="flex gap-2 mt-3">
+              <AssetDialog
+                onSave={saveAsset}
+                categories={categories}
+                tags={tags}
+                isCashOnly
+                defaultCashExchange="CASH_KRW"
+                trigger={
+                  <Button variant="outline" size="sm" className="flex-1 gap-1.5 border-yellow-200 text-yellow-700 hover:bg-yellow-50 hover:border-yellow-300 font-semibold">
+                    <Plus className="h-4 w-4" /> 원화 추가
+                  </Button>
+                }
+              />
+              <AssetDialog
+                onSave={saveAsset}
+                categories={categories}
+                tags={tags}
+                isCashOnly
+                defaultCashExchange="CASH_USD"
+                trigger={
+                  <Button variant="outline" size="sm" className="flex-1 gap-1.5 border-yellow-200 text-yellow-700 hover:bg-yellow-50 hover:border-yellow-300 font-semibold">
+                    <Plus className="h-4 w-4" /> 달러 추가
+                  </Button>
+                }
+              />
+            </div>
           </CardContent>
         </Card>
       </main>

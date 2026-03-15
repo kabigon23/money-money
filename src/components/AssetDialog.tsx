@@ -62,9 +62,11 @@ interface AssetDialogProps {
     tags: Tag[]
     initialAsset?: Asset
     trigger?: React.ReactNode
+    isCashOnly?: boolean
+    defaultCashExchange?: 'CASH_KRW' | 'CASH_USD'
 }
 
-export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }: AssetDialogProps) {
+export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, isCashOnly = false, defaultCashExchange = 'CASH_KRW' }: AssetDialogProps) {
     const [open, setOpen] = useState(false)
     const [adjustmentAmount, setAdjustmentAmount] = useState<number>(0)
     const [history, setHistory] = useState<Transaction[]>(initialAsset?.history || [])
@@ -79,6 +81,13 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
             exchange: initialAsset.exchange,
             categoryId: initialAsset.categoryId,
             tagId: initialAsset.tagId,
+        } : isCashOnly ? {
+            symbol: '',
+            name: '',
+            quantity: 0,
+            exchange: defaultCashExchange,
+            categoryId: '__CASH__',
+            tagId: null,
         } : {
             symbol: '',
             name: '',
@@ -112,6 +121,11 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
     }
 
     const onSubmit: SubmitHandler<FormValues> = (values) => {
+        // isCashOnly 모드일 때 categoryId, tagId 강제
+        const finalValues = isCashOnly
+            ? { ...values, categoryId: '__CASH__', tagId: null }
+            : values
+
         let finalHistory = history
         if (isEdit && initialAsset) {
             const sessionTransactions = history.slice(0, history.length - (initialAsset.history?.length || 0))
@@ -121,20 +135,20 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                 return acc
             }, 0)
             const expectedQuantity = initialAsset.quantity + netAmountFromTransactions
-            if (values.quantity !== expectedQuantity) {
-                const diff = values.quantity - expectedQuantity
+            if (finalValues.quantity !== expectedQuantity) {
+                const diff = finalValues.quantity - expectedQuantity
                 const newTransaction: Transaction = {
                     id: Math.random().toString(36).substr(2, 9),
                     type: 'EDIT',
                     amount: Math.abs(diff),
-                    totalAfter: values.quantity,
+                    totalAfter: finalValues.quantity,
                     timestamp: Date.now()
                 }
                 finalHistory = [newTransaction, ...history]
             }
-            onSave({ ...initialAsset, ...values, history: finalHistory, updatedAt: Date.now() })
+            onSave({ ...initialAsset, ...finalValues, history: finalHistory, updatedAt: Date.now() })
         } else {
-            onSave(values as any)
+            onSave(finalValues as any)
         }
         setOpen(false)
         if (!isEdit) {
@@ -161,9 +175,11 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
             </DialogTrigger>
             <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>{isEdit ? '종목 정보 상세' : '종목 추가'}</DialogTitle>
+                    <DialogTitle>
+                        {isCashOnly ? (isEdit ? '현금 수정' : '현금 추가') : (isEdit ? '종목 정보 상세' : '종목 추가')}
+                    </DialogTitle>
                     <DialogDescription>
-                        {isEdit ? '종목 수정 및 거래 내역을 확인할 수 있습니다.' : '보유하신 자산의 정보를 입력해 주세요.'}
+                        {isCashOnly ? (isEdit ? '현금 보유액을 수정합니다.' : '보유하실 현금 영역과 금액을 입력하세요.') : (isEdit ? '종목 수정 및 거래 내역을 확인할 수 있습니다.' : '보유하신 자산의 정보를 입력해 주세요.')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -178,13 +194,13 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                     <TabsContent value="info">
                         <Form {...form}>
                             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className={`grid gap-4 ${isCashOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
                                     <FormField
                                         control={form.control}
                                         name="exchange"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>시장 / 유형</FormLabel>
+                                                <FormLabel>{isCashOnly ? '통화' : '시장 / 유형'}</FormLabel>
                                                 <Select
                                                     onValueChange={field.onChange}
                                                     defaultValue={field.value}
@@ -195,41 +211,52 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
-                                                        <SelectItem value="US">🇺🇸 미국 (US)</SelectItem>
-                                                        <SelectItem value="KR">🇰🇷 한국 (KR)</SelectItem>
-                                                        <SelectItem value="CRYPTO">₿ 가상자산</SelectItem>
-                                                        <SelectItem value="CASH_KRW">💵 현금 · 원화 (KRW)</SelectItem>
-                                                        <SelectItem value="CASH_USD">💵 현금 · 달러 (USD)</SelectItem>
+                                                        {isCashOnly ? (
+                                                            <>
+                                                                <SelectItem value="CASH_KRW">💵 원화 (KRW)</SelectItem>
+                                                                <SelectItem value="CASH_USD">💵 달러 (USD)</SelectItem>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <SelectItem value="US">🇺🇸 미국 (US)</SelectItem>
+                                                                <SelectItem value="KR">🇺🇷 한국 (KR)</SelectItem>
+                                                                <SelectItem value="CRYPTO">₿ 가상자산</SelectItem>
+                                                                <SelectItem value="CASH_KRW">💵 현금 · 원화 (KRW)</SelectItem>
+                                                                <SelectItem value="CASH_USD">💵 현금 · 달러 (USD)</SelectItem>
+                                                            </>
+                                                        )}
                                                     </SelectContent>
                                                 </Select>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
                                     />
-                                    <FormField
-                                        control={form.control}
-                                        name="categoryId"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>카테고리</FormLabel>
-                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                    <FormControl>
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="카테고리 선택" />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent>
-                                                        {categories.map((category) => (
-                                                            <SelectItem key={category.id} value={category.id}>
-                                                                {category.name}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                    {!isCashOnly && (
+                                        <FormField
+                                            control={form.control}
+                                            name="categoryId"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>카테고리</FormLabel>
+                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                        <FormControl>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="카테고리 선택" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            {categories.map((category) => (
+                                                                <SelectItem key={category.id} value={category.id}>
+                                                                    {category.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
                                 </div>
 
                                 {/* 현금 자산 안내 패널 */}
@@ -371,36 +398,38 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger }:
                                     )}
                                 />
 
-                                <div className="space-y-2">
-                                    <FormLabel className="text-sm font-semibold">태그 선택</FormLabel>
-                                    <div className="flex flex-wrap gap-2">
-                                        {tags.map((tag) => {
-                                            const isSelected = form.watch('tagId') === tag.id
-                                            return (
-                                                <Button
-                                                    key={tag.id}
-                                                    type="button"
-                                                    variant={isSelected ? 'default' : 'outline'}
-                                                    size="sm"
-                                                    style={isSelected ? { backgroundColor: tag.color, borderColor: tag.color } : {}}
-                                                    className={`h-8 px-3 text-xs transition-all ${isSelected
-                                                        ? 'text-white ring-2 ring-offset-2 shadow-md'
-                                                        : 'hover:bg-muted font-medium'
-                                                        }`}
-                                                    onClick={() => {
-                                                        const current = form.getValues('tagId')
-                                                        form.setValue('tagId', current === tag.id ? null : tag.id)
-                                                    }}
-                                                >
-                                                    {tag.name}
-                                                </Button>
-                                            )
-                                        })}
+                                {!isCashOnly && (
+                                    <div className="space-y-2">
+                                        <FormLabel className="text-sm font-semibold">태그 선택</FormLabel>
+                                        <div className="flex flex-wrap gap-2">
+                                            {tags.map((tag) => {
+                                                const isSelected = form.watch('tagId') === tag.id
+                                                return (
+                                                    <Button
+                                                        key={tag.id}
+                                                        type="button"
+                                                        variant={isSelected ? 'default' : 'outline'}
+                                                        size="sm"
+                                                        style={isSelected ? { backgroundColor: tag.color, borderColor: tag.color } : {}}
+                                                        className={`h-8 px-3 text-xs transition-all ${isSelected
+                                                            ? 'text-white ring-2 ring-offset-2 shadow-md'
+                                                            : 'hover:bg-muted font-medium'
+                                                            }`}
+                                                        onClick={() => {
+                                                            const current = form.getValues('tagId')
+                                                            form.setValue('tagId', current === tag.id ? null : tag.id)
+                                                        }}
+                                                    >
+                                                        {tag.name}
+                                                    </Button>
+                                                )
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                                 <DialogFooter className="pt-4 border-t">
                                     <Button type="submit" className="w-full h-12 text-lg font-black shadow-lg shadow-primary/20">
-                                        {isEdit ? '수정 내용 저장' : '새로운 종목 추가'}
+                                        {isCashOnly ? (isEdit ? '현금 수정 저장' : '현금 추가') : (isEdit ? '수정 내용 저장' : '새로운 종목 추가')}
                                     </Button>
                                 </DialogFooter>
                             </form>

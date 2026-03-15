@@ -11,6 +11,8 @@ interface AssetAllocationChartProps {
     prices: Record<string, any>
     baseCurrency: 'KRW' | 'USD'
     exchangeRate: number
+    includeCash: boolean
+    cashAssets: Asset[]
 }
 
 interface Combo {
@@ -31,7 +33,7 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent
     )
 }
 
-export function AssetAllocationChart({ assets, tags, prices, baseCurrency, exchangeRate }: AssetAllocationChartProps) {
+export function AssetAllocationChart({ assets, tags, prices, baseCurrency, exchangeRate, includeCash, cashAssets }: AssetAllocationChartProps) {
     const [combos, setCombos] = useState<Combo[]>([])
     const [activeId, setActiveId] = useState<string | null>(null)
     const isFirstLoad = useRef(true)
@@ -92,6 +94,16 @@ export function AssetAllocationChart({ assets, tags, prices, baseCurrency, excha
         }, 0)
 
     if (noTagValue > 0) tagData.push({ name: '기타 (태그 없음)', value: noTagValue, color: '#94A3B8' })
+
+    // 현금 자산 포함 여부에 따라 노란색 슬라이스 추가
+    if (includeCash && cashAssets.length > 0) {
+        const cashValue = cashAssets.reduce((sum, a) => {
+            return sum + a.quantity * getPriceInBase(1, a.exchange)
+        }, 0)
+        if (cashValue > 0) {
+            tagData.push({ name: '현금', value: cashValue, color: '#EAB308' })
+        }
+    }
 
     if (tagData.length === 0) {
         return (
