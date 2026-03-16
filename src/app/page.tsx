@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key, Plus } from 'lucide-react'
+import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key } from 'lucide-react'
 import { UserPasswordChangeDialog } from '@/components/UserPasswordChangeDialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AssetDialog } from '@/components/AssetDialog'
@@ -584,6 +584,89 @@ export default function Home() {
             </CardContent>
           </Card>
 
+          {/* 현금 자산 독립 영역 */}
+          <Card className="overflow-hidden border-l-4 border-l-yellow-400 hover:shadow-lg transition-shadow flex flex-col">
+            <CardHeader className="pb-1">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <span className="text-xl">💵</span> 현금 자산
+                </CardTitle>
+                {/* 포함/제외 토글 */}
+                <div
+                  onClick={() => {
+                    const next = !includeCash
+                    setIncludeCash(next)
+                    localStorage.setItem('moneymoney_include_cash', String(next))
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors duration-200 ${
+                    includeCash ? 'bg-yellow-400' : 'bg-muted'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                    includeCash ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-2 flex-1">
+              {cashAssets.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground border-2 border-dashed border-yellow-200 rounded-xl text-sm">
+                  현금을 추가해 보세요
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {cashAssets.map(asset => {
+                    const valueInBase = asset.quantity * getPriceInBase(1, asset.exchange)
+                    const isKRW = asset.exchange === 'CASH_KRW'
+                    return (
+                      <div key={asset.id} className="flex items-center justify-between p-3 rounded-xl bg-yellow-50/60 border border-yellow-100 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-yellow-100 flex items-center justify-center font-bold text-yellow-700 text-sm">
+                            {isKRW ? '₩' : '$'}
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm">{isKRW ? '원화 현금' : '달러 현금'}</div>
+                            <div className="text-xs text-muted-foreground font-mono">
+                              {isKRW
+                                ? `${Math.round(asset.quantity).toLocaleString()}원`
+                                : `$${asset.quantity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              }
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-base mr-1">{formatCurrency(valueInBase)}</span>
+                          <AssetDialog
+                            onSave={saveAsset}
+                            categories={categories}
+                            tags={tags}
+                            initialAsset={asset}
+                            isCashOnly
+                            trigger={
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-yellow-600 hover:bg-yellow-50">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            }
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteAsset(asset.id)}
+                            className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-1">
           <Card className="hover:shadow-lg transition-shadow flex flex-col">
             <CardHeader>
               <CardTitle>관심 종목 시세</CardTitle>
@@ -792,122 +875,7 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {/* 현금 자산 독립 영역 */}
-        <Card className="overflow-hidden border-l-4 border-l-yellow-400">
-          <CardHeader className="pb-3" style={{ background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)' }}>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <span className="text-xl">💵</span> 현금 자산
-                </CardTitle>
-                <CardDescription className="mt-0.5 text-xs">
-                  원화 · 달러 현금 보유액 — 토글로 총평가액 및 원그래프 반영 여부를 설정하세요
-                </CardDescription>
-              </div>
-              {/* 포함/제외 토글 */}
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <span className={`text-xs font-bold transition-colors ${includeCash ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                  {includeCash ? '포함 중' : '제외 중'}
-                </span>
-                <div
-                  onClick={() => {
-                    const next = !includeCash
-                    setIncludeCash(next)
-                    localStorage.setItem('moneymoney_include_cash', String(next))
-                  }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors duration-200 ${
-                    includeCash ? 'bg-yellow-400' : 'bg-muted'
-                  }`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
-                    includeCash ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </div>
-              </label>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-4">
-            {cashAssets.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground border-2 border-dashed border-yellow-200 rounded-xl text-sm">
-                현금을 추가해 보세요 👇
-              </div>
-            ) : (
-              <div className="space-y-2 mb-3">
-                {cashAssets.map(asset => {
-                  const valueInBase = asset.quantity * getPriceInBase(1, asset.exchange)
-                  const isKRW = asset.exchange === 'CASH_KRW'
-                  return (
-                    <div key={asset.id} className="flex items-center justify-between p-3 rounded-xl bg-yellow-50/60 border border-yellow-100 shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-yellow-100 flex items-center justify-center font-bold text-yellow-700 text-sm">
-                          {isKRW ? '₩' : '$'}
-                        </div>
-                        <div>
-                          <div className="font-bold text-sm">{isKRW ? '원화 현금' : '달러 현금'}</div>
-                          <div className="text-xs text-muted-foreground font-mono">
-                            {isKRW
-                              ? `${Math.round(asset.quantity).toLocaleString()}원`
-                              : `$${asset.quantity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            }
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="font-bold text-base mr-1">{formatCurrency(valueInBase)}</span>
-                        <AssetDialog
-                          onSave={saveAsset}
-                          categories={categories}
-                          tags={tags}
-                          initialAsset={asset}
-                          isCashOnly
-                          trigger={
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-yellow-600 hover:bg-yellow-50">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          }
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteAsset(asset.id)}
-                          className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-            <div className="flex gap-2 mt-3">
-              <AssetDialog
-                onSave={saveAsset}
-                categories={categories}
-                tags={tags}
-                isCashOnly
-                defaultCashExchange="CASH_KRW"
-                trigger={
-                  <Button variant="outline" size="sm" className="flex-1 gap-1.5 border-yellow-200 text-yellow-700 hover:bg-yellow-50 hover:border-yellow-300 font-semibold">
-                    <Plus className="h-4 w-4" /> 원화 추가
-                  </Button>
-                }
-              />
-              <AssetDialog
-                onSave={saveAsset}
-                categories={categories}
-                tags={tags}
-                isCashOnly
-                defaultCashExchange="CASH_USD"
-                trigger={
-                  <Button variant="outline" size="sm" className="flex-1 gap-1.5 border-yellow-200 text-yellow-700 hover:bg-yellow-50 hover:border-yellow-300 font-semibold">
-                    <Plus className="h-4 w-4" /> 달러 추가
-                  </Button>
-                }
-              />
-            </div>
-          </CardContent>
-        </Card>
+
       </main>
     </div >
   )
