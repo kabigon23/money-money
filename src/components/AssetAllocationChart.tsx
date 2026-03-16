@@ -140,7 +140,7 @@ export function AssetAllocationChart({ assets, tags, prices, baseCurrency, excha
     const highlightedNames = new Set(combos.flatMap(c => c.tagNames))
 
     const renderLegend = () => (
-        <ul className="flex flex-wrap justify-center gap-x-2 gap-y-1 mt-2 px-2">
+        <ul className="flex flex-wrap justify-center gap-x-2 gap-y-1.5 mt-3 px-2">
             {dataWithPercent.map((entry, index) => {
                 const isInActive = activeTagNames.has(entry.name)
                 const isInAny = highlightedNames.has(entry.name)
@@ -165,13 +165,13 @@ export function AssetAllocationChart({ assets, tags, prices, baseCurrency, excha
 
     return (
         <div className="w-full">
-            <div className="h-[240px] w-full pt-2">
+            <div className="h-[220px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
                             data={dataWithPercent}
                             cx="50%"
-                            cy="52%"
+                            cy="50%"
                             innerRadius={55}
                             outerRadius={85}
                             paddingAngle={3}
@@ -200,10 +200,11 @@ export function AssetAllocationChart({ assets, tags, prices, baseCurrency, excha
                                 return [`${formatted} (${pct})`, name]
                             }}
                         />
-                        <Legend content={renderLegend} />
                     </PieChart>
                 </ResponsiveContainer>
             </div>
+            {/* 범례 — 차트 외부에 독립 렌더링하여 겹침 방지 */}
+            {renderLegend()}
 
             {/* 합산 그룹 목록 */}
             <div className="mt-3 space-y-2">
