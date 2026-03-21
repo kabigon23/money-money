@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key } from 'lucide-react'
+import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key, Download } from 'lucide-react'
 import { UserPasswordChangeDialog } from '@/components/UserPasswordChangeDialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AssetDialog } from '@/components/AssetDialog'
@@ -422,6 +422,67 @@ export default function Home() {
     return tags.find(t => t.id === id)
   }
 
+  const downloadAssetsAsCSV = () => {
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const timestampLabel = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
+    const fileTimestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+
+    const allDownloadAssets = [
+      ...filteredAssets,
+      ...cashAssets,
+    ]
+
+    const rows: string[][] = []
+    // 메타 행: 다운로드 시각
+    rows.push([`다운로드 시각: ${timestampLabel}`])
+    rows.push([])
+    // 헤더
+    rows.push(['구분', '거래소', '카테고리', '티커(Symbol)', '종목명', '수량', `현재가(원본통화)`, `현재 평가가치(${baseCurrency})`, '태그'])
+    // 데이터
+    allDownloadAssets.forEach(asset => {
+      const priceInfo = prices[asset.symbol]
+      const isCash = isCashAsset(asset.exchange)
+      const currentPrice = isCash ? 1 : (priceInfo?.currentPrice || 0)
+      const valuationInBase = asset.quantity * getPriceInBase(currentPrice, asset.exchange)
+      const tag = asset.tagId ? getTag(asset.tagId) : null
+      const exchangeLabel =
+        asset.exchange === 'CASH_KRW' ? '현금 KRW' :
+        asset.exchange === 'CASH_USD' ? '현금 USD' :
+        asset.exchange
+      const categoryLabel = isCash ? '현금 자산' : getCategoryName(asset.categoryId)
+      const section = isCash ? '현금 자산' : '투자 자산'
+      const nativePrice = isCash ? (asset.exchange === 'CASH_KRW' ? '원화' : '달러') : String(currentPrice)
+      const valuationStr = baseCurrency === 'KRW'
+        ? `${Math.round(valuationInBase).toLocaleString()}원`
+        : `$${valuationInBase.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      rows.push([
+        section,
+        exchangeLabel,
+        categoryLabel,
+        asset.symbol,
+        asset.name,
+        String(asset.quantity),
+        nativePrice,
+        valuationStr,
+        tag ? tag.name : '-',
+      ])
+    })
+
+    const csvContent = rows.map(row =>
+      row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ).join('\r\n')
+
+    // BOM 추가(Excel 한글 깨짐 방지)
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `assets_${fileTimestamp}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="flex flex-col gap-8 min-h-screen p-8 pb-20 max-w-7xl mx-auto font-[family-name:var(--font-geist-sans)]">
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between sticky top-0 bg-background/80 backdrop-blur-md z-10 py-4 -mx-8 px-8 border-b">
@@ -680,8 +741,21 @@ export default function Home() {
 
         <Card className="overflow-hidden">
           <CardHeader className="bg-muted/30 pb-4">
-            <CardTitle>보유 자산 상세</CardTitle>
-            <CardDescription>현재 티커와 수량 기반 자동 시세 반영 중</CardDescription>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle>보유 자산 상세</CardTitle>
+                <CardDescription>현재 티커와 수량 기반 자동 시세 반영 중</CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={downloadAssetsAsCSV}
+                className="shrink-0 gap-1.5 text-xs h-8 border-primary/30 hover:border-primary hover:bg-primary/5 hover:text-primary"
+              >
+                <Download className="h-3.5 w-3.5" />
+                스프레드시트 다운로드
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {filteredAssets.length === 0 ? (
