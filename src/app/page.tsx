@@ -669,10 +669,10 @@ export default function Home() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="pt-2 flex-1">
+            <CardContent className="pt-2 flex-1 flex flex-col gap-3">
               {cashAssets.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground border-2 border-dashed border-yellow-200 rounded-xl text-sm">
-                  현금을 추가해 보세요
+                <div className="py-6 text-center text-muted-foreground border-2 border-dashed border-yellow-200 rounded-xl text-sm">
+                  아래 버튼으로 현금을 추가해 보세요
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -723,6 +723,41 @@ export default function Home() {
                   })}
                 </div>
               )}
+              {/* 원화 / 달러 추가 버튼 */}
+              <div className="flex gap-2 pt-1">
+                <AssetDialog
+                  onSave={saveAsset}
+                  categories={categories}
+                  tags={tags}
+                  isCashOnly
+                  defaultCashExchange="CASH_KRW"
+                  trigger={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-9 text-xs font-bold border-yellow-300 text-yellow-700 hover:bg-yellow-50 hover:border-yellow-400 gap-1.5"
+                    >
+                      <span className="text-base leading-none">₩</span> 원화 추가
+                    </Button>
+                  }
+                />
+                <AssetDialog
+                  onSave={saveAsset}
+                  categories={categories}
+                  tags={tags}
+                  isCashOnly
+                  defaultCashExchange="CASH_USD"
+                  trigger={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-9 text-xs font-bold border-yellow-300 text-yellow-700 hover:bg-yellow-50 hover:border-yellow-400 gap-1.5"
+                    >
+                      <span className="text-base leading-none">$</span> 달러 추가
+                    </Button>
+                  }
+                />
+              </div>
             </CardContent>
           </Card>
         </div>

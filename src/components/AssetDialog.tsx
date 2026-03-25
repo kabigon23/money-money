@@ -100,6 +100,32 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
 
     const watchedExchange = form.watch('exchange')
 
+    // Dialog가 열릴 때 신규 추가 모드에서 form을 올바른 defaultCashExchange로 초기화
+    useEffect(() => {
+        if (open && !isEdit) {
+            if (isCashOnly) {
+                const meta = CASH_META[defaultCashExchange]
+                form.reset({
+                    symbol: meta.symbol,
+                    name: meta.name,
+                    quantity: 0,
+                    exchange: defaultCashExchange,
+                    categoryId: '__CASH__',
+                    tagId: null,
+                })
+            } else {
+                form.reset({
+                    symbol: '',
+                    name: '',
+                    quantity: 0,
+                    exchange: 'US',
+                    categoryId: 'default',
+                    tagId: null,
+                })
+            }
+        }
+    }, [open])
+
     // 현금 자산 선택 시 symbol/name 자동 설정
     useEffect(() => {
         if (!isEdit && isCash(watchedExchange)) {
