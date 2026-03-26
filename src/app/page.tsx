@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key, Download } from 'lucide-react'
 import { UserPasswordChangeDialog } from '@/components/UserPasswordChangeDialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -162,8 +162,28 @@ export default function Home() {
     return localStorage.getItem('moneymoney_include_cash') !== 'false'
   })
   const [dataLoading, setDataLoading] = useState(true)
+  const [fearGreed, setFearGreed] = useState<{ score: number; rating: string } | null>(null)
 
   const { prices, exchangeRate, loading: pricesLoading } = useAssetPrices(assets)
+
+  // CNN Fear & Greed Index
+  const fetchFearGreed = useCallback(async () => {
+    try {
+      const res = await fetch('/api/fear-greed')
+      if (res.ok) {
+        const data = await res.json()
+        setFearGreed(data)
+      }
+    } catch {
+      // silent fail
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchFearGreed()
+    const interval = setInterval(fetchFearGreed, 5 * 60 * 1000) // 5분마다 갱신
+    return () => clearInterval(interval)
+  }, [fetchFearGreed])
 
   // Data Fetching
   useEffect(() => {
@@ -524,6 +544,29 @@ export default function Home() {
             <span className="text-[10px] text-muted-foreground mt-1 font-mono">
               1 USD = {exchangeRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}원
             </span>
+            {fearGreed && (() => {
+              const s = fearGreed.score
+              const color = s <= 25 ? '#EF4444' : s <= 45 ? '#F97316' : s <= 55 ? '#EAB308' : s <= 75 ? '#84CC16' : '#22C55E'
+              const RATING_KO: Record<string, string> = {
+                'extreme fear': '극단적 공포',
+                'fear': '공포',
+                'neutral': '중립',
+                'greed': '탐욕',
+                'extreme greed': '극단적 탐욕',
+              }
+              const label = RATING_KO[fearGreed.rating.toLowerCase()] ?? fearGreed.rating
+              return (
+                <span className="flex items-center gap-1 mt-0.5">
+                  <span className="text-[10px] text-muted-foreground font-mono">F&G</span>
+                  <span
+                    className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded-full"
+                    style={{ background: color + '22', color }}
+                  >
+                    {s} · {label}
+                  </span>
+                </span>
+              )
+            })()}
           </div>
 
           <div className="hidden md:flex gap-2">
