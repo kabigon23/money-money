@@ -6,6 +6,7 @@ import { UserPasswordChangeDialog } from '@/components/UserPasswordChangeDialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AssetDialog } from '@/components/AssetDialog'
 import { MobileAssetCard } from '@/components/MobileAssetCard'
+import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog'
 import { CategoryManager } from '@/components/CategoryManager'
 import { TagManager } from '@/components/TagManager'
 import { AssetAllocationChart } from '@/components/AssetAllocationChart'
@@ -348,9 +349,9 @@ export default function Home() {
   )
 
   const saveAsset = async (data: Omit<Asset, 'id' | 'createdAt' | 'updatedAt'> | Asset) => {
-    // 현금 자산이면 categoryId, tagId 강제
+    // 현금 자산이면 categoryId, tagId, avgPrice 강제
     const processedData = isCashAsset(data.exchange)
-      ? { ...data, categoryId: CASH_CATEGORY_ID, tagId: null as null }
+      ? { ...data, categoryId: CASH_CATEGORY_ID, tagId: null as null, avgPrice: undefined }
       : data
 
     let newAssets: Asset[]
@@ -379,6 +380,15 @@ export default function Home() {
     }
     setAssets(newAssets)
     await persistAssets(newAssets)
+  }
+
+  // 평단가 포맷 헬퍼
+  const formatAvgPrice = (asset: Asset) => {
+    if (!asset.avgPrice || asset.avgPrice === 0) return null
+    if (asset.exchange === 'US' || asset.exchange === 'CRYPTO') {
+      return `$${asset.avgPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }
+    return `${Math.round(asset.avgPrice).toLocaleString()}원`
   }
 
   const deleteAsset = async (id: string) => {
@@ -458,7 +468,7 @@ export default function Home() {
     rows.push([`다운로드 시각: ${timestampLabel}`])
     rows.push([])
     // 헤더
-    rows.push(['구분', '거래소', '카테고리', '티커(Symbol)', '종목명', '수량', `현재가(원본통화)`, `현재 평가가치(${baseCurrency})`, '태그'])
+    rows.push(['구분', '거래소', '카테고리', '티커(Symbol)', '종목명', '수량', '평단가', `현재가(원본통화)`, `현재 평가가치(${baseCurrency})`, '태그'])
     // 데이터
     allDownloadAssets.forEach(asset => {
       const priceInfo = prices[asset.symbol]
@@ -473,6 +483,7 @@ export default function Home() {
       const categoryLabel = isCash ? '현금 자산' : getCategoryName(asset.categoryId)
       const section = isCash ? '현금 자산' : '투자 자산'
       const nativePrice = isCash ? (asset.exchange === 'CASH_KRW' ? '원화' : '달러') : String(currentPrice)
+      const avgPriceStr = isCash ? '-' : (asset.avgPrice ? String(asset.avgPrice) : '-')
       const valuationStr = baseCurrency === 'KRW'
         ? `${Math.round(valuationInBase).toLocaleString()}원`
         : `$${valuationInBase.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -483,6 +494,7 @@ export default function Home() {
         asset.symbol,
         asset.name,
         String(asset.quantity),
+        avgPriceStr,
         nativePrice,
         valuationStr,
         tag ? tag.name : '-',
@@ -752,14 +764,20 @@ export default function Home() {
                               </Button>
                             }
                           />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteAsset(asset.id)}
-                            className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          <DeleteConfirmDialog
+                            trigger={
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            }
+                            title="현금 자산을 삭제할까요?"
+                            description={`${isKRW ? '원화' : '달러'} 현금 자산이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
+                            onConfirm={() => deleteAsset(asset.id)}
+                          />
                         </div>
                       </div>
                     )
@@ -860,6 +878,7 @@ export default function Home() {
                         valuation={valuationInBase}
                         categoryName={getCategoryName(asset.categoryId)}
                         tag={asset.tagId ? getTag(asset.tagId) : undefined}
+                        avgPrice={asset.avgPrice}
                         onSave={saveAsset}
                         onDelete={deleteAsset}
                         categories={categories}
@@ -879,6 +898,7 @@ export default function Home() {
                         <TableHead className="font-semibold px-6">지역 / 카테고리</TableHead>
                         <TableHead className="font-semibold">종목 정보</TableHead>
                         <TableHead className="font-semibold">수량</TableHead>
+                        <TableHead className="font-semibold">평단가</TableHead>
                         <TableHead className="font-semibold">현재가</TableHead>
                         <TableHead className="font-semibold">현재 평가가치</TableHead>
                         <TableHead className="font-semibold">태그</TableHead>
@@ -919,6 +939,27 @@ export default function Home() {
                               </div>
                             </TableCell>
                             <TableCell className="font-mono">{asset.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}</TableCell>
+                            <TableCell className="font-mono">
+                              {isCashAsset(asset.exchange) ? (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              ) : asset.avgPrice && asset.avgPrice > 0 ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-bold text-amber-600">{formatAvgPrice(asset)}</span>
+                                  {(() => {
+                                    const cp = prices[asset.symbol]?.currentPrice
+                                    if (!cp || !asset.avgPrice) return null
+                                    const pct = ((cp - asset.avgPrice) / asset.avgPrice) * 100
+                                    return (
+                                      <span className={`text-xs font-bold ${pct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                        {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
+                                      </span>
+                                    )
+                                  })()}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">미입력</span>
+                              )}
+                            </TableCell>
                             <TableCell className="font-mono">
                               {isCashAsset(asset.exchange) ? (
                                 <span className="text-xs text-muted-foreground italic">
@@ -1006,14 +1047,20 @@ export default function Home() {
                                     </Button>
                                   }
                                 />
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => deleteAsset(asset.id)}
-                                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full h-8 w-8"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <DeleteConfirmDialog
+                                  trigger={
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full h-8 w-8"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  }
+                                  title={`'${asset.exchange === 'KR' ? asset.name : asset.symbol}' 종목을 삭제할까요?`}
+                                  description="삭제된 종목과 거래 내역은 복구할 수 없습니다."
+                                  onConfirm={() => deleteAsset(asset.id)}
+                                />
                               </div>
                             </TableCell>
                           </TableRow>

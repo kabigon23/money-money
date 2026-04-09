@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Pencil, Trash2, TrendingUp, TrendingDown } from 'lucide-react'
 import { AssetDialog } from './AssetDialog'
+import { DeleteConfirmDialog } from './DeleteConfirmDialog'
 
 interface MobileAssetCardProps {
     asset: Asset
@@ -13,6 +14,7 @@ interface MobileAssetCardProps {
     valuation: number
     categoryName: string
     tag?: Tag
+    avgPrice?: number
     onSave: (data: Omit<Asset, 'id' | 'createdAt' | 'updatedAt'> | Asset) => Promise<void>
     onDelete: (id: string) => Promise<void>
     categories: Category[]
@@ -29,6 +31,7 @@ export function MobileAssetCard({
     valuation,
     categoryName,
     tag,
+    avgPrice,
     onSave,
     onDelete,
     categories,
@@ -115,6 +118,22 @@ export function MobileAssetCard({
                     </div>
                 </div>
 
+                {/* 평단가 일낙 (currentPrice와 avgPrice 모두 있어야 표시) */}
+                {avgPrice && avgPrice > 0 && currentPrice > 0 && !['CASH_KRW', 'CASH_USD'].includes(asset.exchange) && (() => {
+                    const avgStr = (asset.exchange === 'US' || asset.exchange === 'CRYPTO')
+                        ? `$${avgPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : `${Math.round(avgPrice).toLocaleString()}원`
+                    const pct = ((currentPrice - avgPrice) / avgPrice) * 100
+                    return (
+                        <div className="flex items-center justify-between px-1 py-1.5 bg-amber-50 rounded-lg border border-amber-100 text-xs">
+                            <span className="text-amber-600 font-semibold">평단가 {avgStr}</span>
+                            <span className={`font-black ${pct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
+                            </span>
+                        </div>
+                    )
+                })()}
+
                 <div className="flex justify-between items-center mt-2">
                     <div className="flex flex-col">
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">평가 가치</span>
@@ -133,14 +152,20 @@ export function MobileAssetCard({
                                 </Button>
                             }
                         />
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onDelete(asset.id)}
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <DeleteConfirmDialog
+                            trigger={
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            }
+                            title={`'${asset.exchange === 'KR' ? asset.name : asset.symbol}' 종목을 삭제할까요?`}
+                            description="삭제된 종목과 거래 내역은 복구할 수 없습니다."
+                            onConfirm={() => onDelete(asset.id)}
+                        />
                     </div>
                 </div>
             </CardContent>

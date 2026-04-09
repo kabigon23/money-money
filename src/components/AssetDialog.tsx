@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Minus, History, Clock, ArrowRight } from 'lucide-react'
+import { Plus, Minus, History, Clock, ArrowRight, TrendingUp } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, SubmitHandler } from 'react-hook-form'
 import * as z from 'zod'
@@ -52,6 +52,7 @@ const formSchema = z.object({
     exchange: z.enum(['US', 'KR', 'CRYPTO', 'CASH_KRW', 'CASH_USD']),
     categoryId: z.string().min(1, '카테고리를 선택하세요.'),
     tagId: z.string().nullable().default(null),
+    initialAvgPrice: z.coerce.number().min(0).optional(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -69,7 +70,11 @@ interface AssetDialogProps {
 export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, isCashOnly = false, defaultCashExchange = 'CASH_KRW' }: AssetDialogProps) {
     const [open, setOpen] = useState(false)
     const [adjustmentAmount, setAdjustmentAmount] = useState<number>(0)
+    const [buyPrice, setBuyPrice] = useState<number>(0)
+    // 편집 모드에서 평단가 직접 수정
+    const [editAvgPrice, setEditAvgPrice] = useState<string>('')
     const [history, setHistory] = useState<Transaction[]>(initialAsset?.history || [])
+    const [currentAvgPrice, setCurrentAvgPrice] = useState<number>(initialAsset?.avgPrice || 0)
     const isEdit = !!initialAsset
 
     const form = useForm<FormValues>({
@@ -81,6 +86,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
             exchange: initialAsset.exchange,
             categoryId: initialAsset.categoryId,
             tagId: initialAsset.tagId,
+            initialAvgPrice: initialAsset.avgPrice ?? undefined,
         } : isCashOnly ? {
             symbol: '',
             name: '',
@@ -95,33 +101,45 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
             exchange: 'US',
             categoryId: 'default',
             tagId: null,
+            initialAvgPrice: undefined,
         },
     })
 
     const watchedExchange = form.watch('exchange')
 
-    // Dialog가 열릴 때 신규 추가 모드에서 form을 올바른 defaultCashExchange로 초기화
+    // Dialog가 열릴 때 초기화
     useEffect(() => {
-        if (open && !isEdit) {
-            if (isCashOnly) {
-                const meta = CASH_META[defaultCashExchange]
-                form.reset({
-                    symbol: meta.symbol,
-                    name: meta.name,
-                    quantity: 0,
-                    exchange: defaultCashExchange,
-                    categoryId: '__CASH__',
-                    tagId: null,
-                })
-            } else {
-                form.reset({
-                    symbol: '',
-                    name: '',
-                    quantity: 0,
-                    exchange: 'US',
-                    categoryId: 'default',
-                    tagId: null,
-                })
+        if (open) {
+            if (isEdit && initialAsset) {
+                setCurrentAvgPrice(initialAsset.avgPrice || 0)
+                setEditAvgPrice(initialAsset.avgPrice ? String(initialAsset.avgPrice) : '')
+                setHistory(initialAsset.history || [])
+            } else if (!isEdit) {
+                setCurrentAvgPrice(0)
+                setEditAvgPrice('')
+                setBuyPrice(0)
+                setAdjustmentAmount(0)
+                if (isCashOnly) {
+                    const meta = CASH_META[defaultCashExchange]
+                    form.reset({
+                        symbol: meta.symbol,
+                        name: meta.name,
+                        quantity: 0,
+                        exchange: defaultCashExchange,
+                        categoryId: '__CASH__',
+                        tagId: null,
+                    })
+                } else {
+                    form.reset({
+                        symbol: '',
+                        name: '',
+                        quantity: 0,
+                        exchange: 'US',
+                        categoryId: 'default',
+                        tagId: null,
+                        initialAvgPrice: undefined,
+                    })
+                }
             }
         }
     }, [open])
@@ -135,24 +153,34 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
         }
     }, [watchedExchange, isEdit, form])
 
-    const recordTransaction = (type: 'BUY' | 'SELL' | 'EDIT', amount: number, totalAfter: number) => {
+    const recordTransaction = (type: 'BUY' | 'SELL' | 'EDIT', amount: number, totalAfter: number, price?: number) => {
         const newTransaction: Transaction = {
             id: Math.random().toString(36).substr(2, 9),
             type,
             amount,
             totalAfter,
+            price,
             timestamp: Date.now()
         }
         setHistory(prev => [newTransaction, ...prev])
     }
 
+    // 평단가 재계산 (가중평균)
+    const calcNewAvgPrice = (prevAvg: number, prevQty: number, addQty: number, addPrice: number): number => {
+        if (addQty <= 0) return prevAvg
+        if (addPrice <= 0) return prevAvg // 가격 없으면 평단가 유지
+        const totalCost = prevAvg * prevQty + addPrice * addQty
+        return totalCost / (prevQty + addQty)
+    }
+
     const onSubmit: SubmitHandler<FormValues> = (values) => {
-        // isCashOnly 모드일 때 categoryId, tagId 강제
         const finalValues = isCashOnly
             ? { ...values, categoryId: '__CASH__', tagId: null }
             : values
 
         let finalHistory = history
+        let finalAvgPrice = currentAvgPrice
+
         if (isEdit && initialAsset) {
             const sessionTransactions = history.slice(0, history.length - (initialAsset.history?.length || 0))
             const netAmountFromTransactions = sessionTransactions.reduce((acc, t) => {
@@ -172,20 +200,41 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                 }
                 finalHistory = [newTransaction, ...history]
             }
-            onSave({ ...initialAsset, ...finalValues, history: finalHistory, updatedAt: Date.now() })
+            // 편집 모드에서 평단가 직접 수정한 경우
+            const parsedEditAvg = parseFloat(editAvgPrice)
+            if (!isNaN(parsedEditAvg) && parsedEditAvg >= 0) {
+                finalAvgPrice = parsedEditAvg
+            }
+            onSave({
+                ...initialAsset,
+                ...finalValues,
+                avgPrice: finalAvgPrice || undefined,
+                history: finalHistory,
+                updatedAt: Date.now()
+            })
         } else {
-            onSave(finalValues as any)
+            // 신규 추가 시 초기 매수가가 있으면 avgPrice 설정
+            const initPrice = finalValues.initialAvgPrice
+            const initAvg = initPrice && initPrice > 0 ? initPrice : undefined
+            onSave({ ...finalValues, avgPrice: initAvg } as any)
         }
         setOpen(false)
         if (!isEdit) {
             form.reset()
             setHistory([])
+            setCurrentAvgPrice(0)
         }
     }
 
     const isCashAsset = isCash(watchedExchange)
     const cashMeta = isCashAsset ? CASH_META[watchedExchange as CashExchange] : null
     const quantityUnit = cashMeta?.unit ?? '주/개'
+
+    const formatPrice = (price: number | undefined, exchange: string) => {
+        if (!price || price === 0) return null
+        if (exchange === 'US' || exchange === 'CRYPTO') return `$${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        return `${price.toLocaleString()}원`
+    }
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -368,7 +417,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                                 </div>
 
                                                 {isEdit && (
-                                                    <div className="flex flex-col gap-2 p-3 bg-white rounded-xl border-2 border-primary/10 shadow-sm transition-all">
+                                                    <div className="flex flex-col gap-3 p-3 bg-white rounded-xl border-2 border-primary/10 shadow-sm">
                                                         <div className="flex items-center justify-between px-1">
                                                             <span className="text-xs font-black text-primary">
                                                                 {isCashAsset ? '금액 조정' : '거래량 입력'}
@@ -377,44 +426,86 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                                                 <Clock className="w-3 h-3" /> Quick Action
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <Input
-                                                                type="number"
-                                                                placeholder="0"
-                                                                id="adjustmentAmount"
-                                                                className="w-24 h-10 text-right font-bold text-lg border-primary/20 focus-visible:ring-primary"
-                                                                onChange={(e) => setAdjustmentAmount(Number(e.target.value) || 0)}
-                                                            />
-                                                            <div className="flex gap-2 flex-1">
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    className="flex-1 h-10 font-black text-blue-600 hover:bg-blue-50 border-blue-200 hover:border-blue-300 gap-1 rounded-lg"
-                                                                    onClick={() => {
-                                                                        const current = Number(form.getValues('quantity')) || 0
-                                                                        const next = current + adjustmentAmount
-                                                                        form.setValue('quantity', next)
-                                                                        recordTransaction('BUY', adjustmentAmount, next)
-                                                                    }}
-                                                                >
-                                                                    <Plus className="w-4 h-4" />
-                                                                    {isCashAsset ? '입금' : '매수'}
-                                                                </Button>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    className="flex-1 h-10 font-black text-red-600 hover:bg-red-50 border-red-200 hover:border-red-300 gap-1 rounded-lg"
-                                                                    onClick={() => {
-                                                                        const current = Number(form.getValues('quantity')) || 0
-                                                                        const next = Math.max(0, current - adjustmentAmount)
-                                                                        form.setValue('quantity', next)
-                                                                        recordTransaction('SELL', adjustmentAmount, next)
-                                                                    }}
-                                                                >
-                                                                    <Minus className="w-4 h-4" />
-                                                                    {isCashAsset ? '출금' : '매도'}
-                                                                </Button>
+
+                                                        {/* 1행: 수량 + 단가 입력 */}
+                                                        <div className={`grid gap-2 ${!isCashAsset ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                                            <div className="flex flex-col gap-1">
+                                                                <span className="text-[11px] text-slate-400 font-semibold">수량</span>
+                                                                <Input
+                                                                    type="number"
+                                                                    placeholder="0"
+                                                                    value={adjustmentAmount || ''}
+                                                                    className="h-10 text-right font-bold text-lg border-primary/20 focus-visible:ring-primary"
+                                                                    onChange={(e) => setAdjustmentAmount(Number(e.target.value) || 0)}
+                                                                />
                                                             </div>
+                                                            {!isCashAsset && (
+                                                                <div className="flex flex-col gap-1">
+                                                                    <span className="text-[11px] text-amber-500 font-semibold">@ 매수 단가</span>
+                                                                    <Input
+                                                                        type="number"
+                                                                        placeholder="0"
+                                                                        step="any"
+                                                                        value={buyPrice || ''}
+                                                                        className="h-10 text-right font-bold border-amber-200 focus-visible:ring-amber-400 bg-amber-50/50"
+                                                                        onChange={(e) => setBuyPrice(Number(e.target.value) || 0)}
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* 평단가 예상 미리보기 */}
+                                                        {!isCashAsset && adjustmentAmount > 0 && buyPrice > 0 && (() => {
+                                                            const current = Number(form.getValues('quantity')) || 0
+                                                            const previewAvg = calcNewAvgPrice(currentAvgPrice, current, adjustmentAmount, buyPrice)
+                                                            return (
+                                                                <div className="flex items-center gap-2 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                                                    <TrendingUp className="w-3 h-3 text-amber-500 shrink-0" />
+                                                                    <span className="text-amber-600">매수 후 예상 평단가:</span>
+                                                                    <span className="font-black text-amber-700">{formatPrice(previewAvg, watchedExchange)}</span>
+                                                                </div>
+                                                            )
+                                                        })()}
+
+                                                        {/* 2행: 매수/매도 버튼 */}
+                                                        <div className="flex gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                className="flex-1 h-10 font-black text-blue-600 hover:bg-blue-50 border-blue-200 hover:border-blue-300 gap-1 rounded-lg"
+                                                                onClick={() => {
+                                                                    const current = Number(form.getValues('quantity')) || 0
+                                                                    const next = current + adjustmentAmount
+                                                                    form.setValue('quantity', next)
+                                                                    if (!isCashAsset && buyPrice > 0) {
+                                                                        const newAvg = calcNewAvgPrice(currentAvgPrice, current, adjustmentAmount, buyPrice)
+                                                                        setCurrentAvgPrice(newAvg)
+                                                                        setEditAvgPrice(String(newAvg.toFixed(4)))
+                                                                    }
+                                                                    recordTransaction('BUY', adjustmentAmount, next, isCashAsset ? undefined : (buyPrice || undefined))
+                                                                    setAdjustmentAmount(0)
+                                                                    setBuyPrice(0)
+                                                                }}
+                                                            >
+                                                                <Plus className="w-4 h-4" />
+                                                                {isCashAsset ? '입금' : '매수'}
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                className="flex-1 h-10 font-black text-red-600 hover:bg-red-50 border-red-200 hover:border-red-300 gap-1 rounded-lg"
+                                                                onClick={() => {
+                                                                    const current = Number(form.getValues('quantity')) || 0
+                                                                    const next = Math.max(0, current - adjustmentAmount)
+                                                                    form.setValue('quantity', next)
+                                                                    recordTransaction('SELL', adjustmentAmount, next, isCashAsset ? undefined : (buyPrice || undefined))
+                                                                    setAdjustmentAmount(0)
+                                                                    setBuyPrice(0)
+                                                                }}
+                                                            >
+                                                                <Minus className="w-4 h-4" />
+                                                                {isCashAsset ? '출금' : '매도'}
+                                                            </Button>
                                                         </div>
                                                     </div>
                                                 )}
@@ -423,6 +514,70 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                         </FormItem>
                                     )}
                                 />
+
+                                {/* 평단가 섹션 (비현금 자산만) */}
+                                {!isCashAsset && (
+                                    <div className="rounded-2xl border bg-amber-50 border-amber-200 p-4 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <TrendingUp className="w-4 h-4 text-amber-600" />
+                                            <span className="text-sm font-black text-amber-700">평단가 (평균 매수가)</span>
+                                        </div>
+
+                                        {isEdit ? (
+                                            /* 편집 모드: 평단가 직접 수정 가능 */
+                                            <div className="space-y-2">
+                                                {currentAvgPrice > 0 && (
+                                                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-100 rounded-lg px-3 py-2">
+                                                        <span>현재 계산된 평단가:</span>
+                                                        <span className="font-black">{formatPrice(currentAvgPrice, watchedExchange) ?? '---'}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    <Input
+                                                        type="number"
+                                                        step="any"
+                                                        placeholder={currentAvgPrice > 0 ? String(currentAvgPrice.toFixed(2)) : "직접 입력 (선택)"}
+                                                        value={editAvgPrice}
+                                                        onChange={(e) => setEditAvgPrice(e.target.value)}
+                                                        className="h-10 font-bold bg-white border-amber-200 focus-visible:ring-amber-400"
+                                                    />
+                                                    <span className="text-xs text-amber-500 shrink-0">
+                                                        {watchedExchange === 'KR' ? '원' : watchedExchange === 'US' || watchedExchange === 'CRYPTO' ? 'USD' : ''}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] text-amber-500">
+                                                    비워두면 매수 시 자동 계산된 평단가가 유지됩니다.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            /* 신규 추가 모드: 초기 평단가 입력 */
+                                            <div className="space-y-2">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="initialAvgPrice"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormControl>
+                                                                <Input
+                                                                    type="number"
+                                                                    step="any"
+                                                                    placeholder="초기 매수가 입력 (선택)"
+                                                                    {...field}
+                                                                    value={field.value ?? ''}
+                                                                    className="h-10 font-bold bg-white border-amber-200 focus-visible:ring-amber-400"
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <p className="text-[11px] text-amber-500">
+                                                    이미 보유 중인 자산의 평균 매수가를 입력하세요. 나중에 수정할 수 있습니다.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {!isCashOnly && (
                                     <div className="space-y-2">
@@ -503,6 +658,13 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                                     <span className="text-slate-600">
                                                         {item.totalAfter.toLocaleString()} {quantityUnit}
                                                     </span>
+                                                    {/* 단가 표시 (비현금 BUY/SELL) */}
+                                                    {!isCashAsset && item.price && item.price > 0 && (
+                                                        <>
+                                                            <span className="mx-1 text-slate-300">|</span>
+                                                            <span className="text-amber-600">@ {formatPrice(item.price, watchedExchange)}</span>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

@@ -19,6 +19,7 @@ export interface Transaction {
     type: TransactionType
     amount: number
     totalAfter: number
+    price?: number      // 매수/매도 단가 (주당 가격)
     timestamp: number
 }
 
@@ -30,6 +31,7 @@ export interface Asset {
     exchange: Exchange
     categoryId: string
     tagId: string | null
+    avgPrice?: number   // 평균 매수가 (평단가)
     history: Transaction[]
     createdAt: number
     updatedAt: number
