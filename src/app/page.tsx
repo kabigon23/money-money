@@ -164,6 +164,8 @@ export default function Home() {
   })
   const [dataLoading, setDataLoading] = useState(true)
   const [fearGreed, setFearGreed] = useState<{ score: number; rating: string } | null>(null)
+  const [snapshotStock, setSnapshotStock] = useState<number | null>(null)
+  const [snapshotCrypto, setSnapshotCrypto] = useState<number | null>(null)
 
   const { prices, exchangeRate, loading: pricesLoading } = useAssetPrices(assets)
 
@@ -322,25 +324,98 @@ export default function Home() {
     return nonCash.filter(a => a.categoryId === selectedCategoryId)
   }, [assets, selectedCategoryId])
 
-  // 포트폴리오 요약 계산 (선택된 카테고리 기준 + 현금 토글)
+  // 포트폴리오 요약 계산 (코인 / 일반주식+현금 분리)
   const summary = useMemo(() => {
-    let currentTotalValue = 0
+    let stockTotal = 0
+    let cryptoTotal = 0
 
     filteredAssets.forEach(asset => {
       const currentPrice = prices[asset.symbol]?.currentPrice || 0
       const priceInBase = getPriceInBase(currentPrice, asset.exchange)
-      currentTotalValue += asset.quantity * priceInBase
+      const value = asset.quantity * priceInBase
+      if (asset.exchange === 'CRYPTO') {
+        cryptoTotal += value
+      } else {
+        stockTotal += value
+      }
     })
 
-    // 현금 포함 토글이 ON이면 현금셄 합산
+    // 현금 포함 토글이 ON이면 현금 합산 (일반주식 쪽에)
     if (includeCash) {
       cashAssets.forEach(asset => {
-        currentTotalValue += asset.quantity * getPriceInBase(1, asset.exchange)
+        stockTotal += asset.quantity * getPriceInBase(1, asset.exchange)
       })
     }
 
-    return { currentTotalValue }
+    return { stockTotal, cryptoTotal, currentTotalValue: stockTotal + cryptoTotal }
   }, [filteredAssets, cashAssets, prices, baseCurrency, exchangeRate, includeCash])
+
+  // KST 날짜 헬퍼
+  const getKstInfo = () => {
+    const now = new Date()
+    const kstMs = now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60000
+    const kstNow = new Date(kstMs)
+    return {
+      todayStr: `${kstNow.getFullYear()}-${String(kstNow.getMonth() + 1).padStart(2, '0')}-${String(kstNow.getDate()).padStart(2, '0')}`,
+      hour: kstNow.getHours(),
+      minute: kstNow.getMinutes(),
+    }
+  }
+
+  // 카테고리 또는 통화 변경 시 스냅샷 초기화 (stale 값 방지)
+  useEffect(() => {
+    setSnapshotStock(null)
+    setSnapshotCrypto(null)
+  }, [selectedCategoryId, baseCurrency])
+
+  // 일반주식+현금 스냅샷: 즉시 초기화
+  useEffect(() => {
+    if (summary.stockTotal <= 0 || pricesLoading || !user) return
+
+    const { todayStr } = getKstInfo()
+    const params = new URLSearchParams({ userId: user.id, date: todayStr, currency: baseCurrency, categoryId: selectedCategoryId, type: 'stock' })
+
+    const run = async () => {
+      const res = await fetch(`/api/snapshot?${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.value !== null) { setSnapshotStock(data.value); return }
+      }
+      // 스냅샷 없으면 현재값으로 즉시 초기화
+      await fetch(`/api/snapshot?userId=${user.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: todayStr, currency: baseCurrency, categoryId: selectedCategoryId, value: summary.stockTotal, type: 'stock' }),
+      })
+      setSnapshotStock(summary.stockTotal)
+    }
+    run().catch(console.error)
+  }, [summary.stockTotal, pricesLoading, baseCurrency, selectedCategoryId, user])
+
+  // 코인 스냅샷: 스냅샷 없으면 현재값으로 즉시 초기화 (날짜 키가 매일 갱신되므로 매일 리셋)
+  useEffect(() => {
+    if (summary.cryptoTotal <= 0 || pricesLoading || !user) return
+
+    const { todayStr } = getKstInfo()
+    const params = new URLSearchParams({ userId: user.id, date: todayStr, currency: baseCurrency, categoryId: selectedCategoryId, type: 'crypto' })
+
+    const run = async () => {
+      // 기존 스냅샷 먼저 조회
+      const res = await fetch(`/api/snapshot?${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.value !== null) { setSnapshotCrypto(data.value); return }
+      }
+      // 스냅샷 없으면 현재값으로 즉시 초기화
+      await fetch(`/api/snapshot?userId=${user.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: todayStr, currency: baseCurrency, categoryId: selectedCategoryId, value: summary.cryptoTotal, type: 'crypto' }),
+      })
+      setSnapshotCrypto(summary.cryptoTotal)
+    }
+    run().catch(console.error)
+  }, [summary.cryptoTotal, pricesLoading, baseCurrency, selectedCategoryId, user])
 
   if (authLoading || !user || user.role !== 'USER' || dataLoading) return (
     <div className="flex items-center justify-center min-h-screen">
@@ -670,8 +745,51 @@ export default function Home() {
               </Select>
             </CardHeader>
             <CardContent>
-              <div className="text-5xl font-extrabold tracking-tighter text-primary">
-                {formatCurrency(summary.currentTotalValue)}
+              <div className="flex items-end gap-4 flex-wrap">
+                <div className="text-5xl font-extrabold tracking-tighter text-primary">
+                  {formatCurrency(summary.currentTotalValue)}
+                </div>
+                {summary.currentTotalValue > 0 && (() => {
+                  // 일반주식: 스냅샷 있으면 변화분 계산, 없으면 0
+                  // (stockTotal=0인 카테고리에서는 stockDiff=0으로 안전하게 처리)
+                  const stockDiff = (snapshotStock !== null && summary.stockTotal > 0)
+                    ? summary.stockTotal - snapshotStock
+                    : 0
+                  // 코인: 08:59 스냅샷 있으면 변화분, 없으면 0
+                  const cryptoDiff = (snapshotCrypto !== null && summary.cryptoTotal > 0)
+                    ? summary.cryptoTotal - snapshotCrypto
+                    : 0
+                  const totalDiff = stockDiff + cryptoDiff
+                  // 분모: 스냅샷이 있으면 스냅샷값, 없으면 현재값 → 0%로 표시
+                  const effectiveStockBase = (snapshotStock !== null && summary.stockTotal > 0) ? snapshotStock : summary.stockTotal
+                  const effectiveCryptoBase = (snapshotCrypto !== null && summary.cryptoTotal > 0) ? snapshotCrypto : summary.cryptoTotal
+                  const snapshotBase = effectiveStockBase + effectiveCryptoBase
+                  const diffPct = snapshotBase > 0 ? (totalDiff / snapshotBase) * 100 : 0
+                  const isUp = totalDiff >= 0
+                  // 한국 주식 관행: 상승/보합=빨간색, 하락=파란색
+                  const color = isUp ? '#EF4444' : '#3B82F6'
+                  const bg = isUp ? 'rgba(239,68,68,0.08)' : 'rgba(59,130,246,0.08)'
+                  return (
+                    <div
+                      className="flex flex-col gap-0.5 pb-1"
+                      title="주식: 세션 시작 기준 | 코인: 08:59 KST 기준"
+                    >
+                      <span
+                        className="text-xl font-black font-mono tracking-tight"
+                        style={{ color }}
+                      >
+                        {isUp ? '+' : ''}{diffPct.toFixed(2)}%
+                      </span>
+                      <span
+                        className="text-sm font-bold font-mono px-2 py-0.5 rounded-lg"
+                        style={{ color, background: bg }}
+                      >
+                        {isUp ? '+' : ''}{formatCurrency(Math.abs(totalDiff))}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">vs 08:59 KST</span>
+                    </div>
+                  )
+                })()}
               </div>
             </CardContent>
           </Card>
