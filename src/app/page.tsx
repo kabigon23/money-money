@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useDailySnapshot } from '@/hooks/useDailySnapshot'
 import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key, Download } from 'lucide-react'
 import { UserPasswordChangeDialog } from '@/components/UserPasswordChangeDialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -166,6 +167,9 @@ export default function Home() {
   const [fearGreed, setFearGreed] = useState<{ score: number; rating: string } | null>(null)
 
   const { prices, exchangeRate } = useAssetPrices(assets)
+
+  // KST 09:30~09:40 창에 자동으로 자산별 평가금액 스냅샷 기록
+  useDailySnapshot({ userId: user?.id, assets })
 
   // CNN Fear & Greed Index
   const fetchFearGreed = useCallback(async () => {
