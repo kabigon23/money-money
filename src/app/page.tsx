@@ -30,7 +30,6 @@ import { useAuth } from '@/context/AuthContext'
 
 
 
-const CASH_CATEGORY_ID = '__CASH__'
 const isCashAsset = (exchange: string) => exchange === 'CASH_KRW' || exchange === 'CASH_USD'
 
 const INITIAL_ASSETS: Asset[] = [
@@ -206,13 +205,13 @@ export default function Home() {
         const categoriesData = await categoriesRes.json()
         const tagsData = await tagsRes.json()
 
-        // 현금 자산 마이그레이션: categoryId !== CASH_CATEGORY_ID 인 현금을 자동 보정
+        // 현금 자산 마이그레이션: categoryId === '__CASH__' 인 현금을 'default'로 자동 보정
         const hadMigration = assetsData.some(
-          (a) => isCashAsset(a.exchange) && a.categoryId !== CASH_CATEGORY_ID
+          (a) => isCashAsset(a.exchange) && a.categoryId === '__CASH__'
         )
         const normalizedAssets = assetsData.map((a) =>
-          isCashAsset(a.exchange) && a.categoryId !== CASH_CATEGORY_ID
-            ? { ...a, categoryId: CASH_CATEGORY_ID, tagId: null }
+          isCashAsset(a.exchange) && a.categoryId === '__CASH__'
+            ? { ...a, categoryId: 'default', tagId: null }
             : a
         )
         setAssets(normalizedAssets)
@@ -317,8 +316,10 @@ export default function Home() {
   }
 
   const cashAssets = useMemo(() => {
-    return assets.filter(a => isCashAsset(a.exchange))
-  }, [assets])
+    const allCash = assets.filter(a => isCashAsset(a.exchange))
+    if (selectedCategoryId === 'all') return allCash
+    return allCash.filter(a => a.categoryId === selectedCategoryId)
+  }, [assets, selectedCategoryId])
 
   const filteredAssets = useMemo(() => {
     const nonCash = assets.filter(a => !isCashAsset(a.exchange))
@@ -355,9 +356,9 @@ export default function Home() {
   )
 
   const saveAsset = async (data: Omit<Asset, 'id' | 'createdAt' | 'updatedAt'> | Asset) => {
-    // 현금 자산이면 categoryId, tagId, avgPrice 강제
+    // 현금 자산도 categoryId를 유지하되 tagId/avgPrice만 강제 코르통
     const processedData = isCashAsset(data.exchange)
-      ? { ...data, categoryId: CASH_CATEGORY_ID, tagId: null as null, avgPrice: undefined }
+      ? { ...data, tagId: null as null, avgPrice: undefined }
       : data
 
     let newAssets: Asset[]
@@ -708,12 +709,17 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          {/* 현금 자산 독립 영역 */}
+          {/* 현금 자산 영역: 선택된 카테고리 필터링 적용 */}
           <Card className="overflow-hidden border-l-4 border-l-yellow-400 hover:shadow-lg transition-shadow flex flex-col">
             <CardHeader className="pb-1">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <span className="text-xl">💵</span> 현금 자산
+                  {selectedCategoryId !== 'all' && (
+                    <span className="text-xs font-normal text-muted-foreground ml-1">
+                      · {getCategoryName(selectedCategoryId)}
+                    </span>
+                  )}
                 </CardTitle>
                 {/* 포함/제외 토글 */}
                 <div
@@ -735,7 +741,10 @@ export default function Home() {
             <CardContent className="pt-2 flex-1 flex flex-col gap-3">
               {cashAssets.length === 0 ? (
                 <div className="py-6 text-center text-muted-foreground border-2 border-dashed border-yellow-200 rounded-xl text-sm">
-                  아래 버튼으로 현금을 추가해 보세요
+                  {selectedCategoryId === 'all'
+                    ? '아래 버튼으로 현금을 추가해 보세요'
+                    : `‘${getCategoryName(selectedCategoryId)}’ 카테고리에 등록된 현금이 없습니다`
+                  }
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -800,6 +809,7 @@ export default function Home() {
                   tags={tags}
                   isCashOnly
                   defaultCashExchange="CASH_KRW"
+                  defaultCategoryId={selectedCategoryId === 'all' ? 'default' : selectedCategoryId}
                   trigger={
                     <Button
                       variant="outline"
@@ -816,6 +826,7 @@ export default function Home() {
                   tags={tags}
                   isCashOnly
                   defaultCashExchange="CASH_USD"
+                  defaultCategoryId={selectedCategoryId === 'all' ? 'default' : selectedCategoryId}
                   trigger={
                     <Button
                       variant="outline"

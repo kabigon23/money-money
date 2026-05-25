@@ -65,9 +65,10 @@ interface AssetDialogProps {
     trigger?: React.ReactNode
     isCashOnly?: boolean
     defaultCashExchange?: 'CASH_KRW' | 'CASH_USD'
+    defaultCategoryId?: string
 }
 
-export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, isCashOnly = false, defaultCashExchange = 'CASH_KRW' }: AssetDialogProps) {
+export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, isCashOnly = false, defaultCashExchange = 'CASH_KRW', defaultCategoryId = 'default' }: AssetDialogProps) {
     const [open, setOpen] = useState(false)
     const [adjustmentAmount, setAdjustmentAmount] = useState<number>(0)
     const [buyPrice, setBuyPrice] = useState<number>(0)
@@ -92,7 +93,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
             name: '',
             quantity: 0,
             exchange: defaultCashExchange,
-            categoryId: '__CASH__',
+            categoryId: defaultCategoryId,
             tagId: null,
         } : {
             symbol: '',
@@ -126,7 +127,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                         name: meta.name,
                         quantity: 0,
                         exchange: defaultCashExchange,
-                        categoryId: '__CASH__',
+                        categoryId: defaultCategoryId,
                         tagId: null,
                     })
                 } else {
@@ -175,7 +176,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
 
     const onSubmit: SubmitHandler<FormValues> = (values) => {
         const finalValues = isCashOnly
-            ? { ...values, categoryId: '__CASH__', tagId: null }
+            ? { ...values, tagId: null }
             : values
 
         let finalHistory = history
@@ -269,7 +270,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                     <TabsContent value="info">
                         <Form {...form}>
                             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
-                                <div className={`grid gap-4 ${isCashOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                <div className="grid gap-4 grid-cols-2">
                                     <FormField
                                         control={form.control}
                                         name="exchange"
@@ -306,32 +307,31 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                             </FormItem>
                                         )}
                                     />
-                                    {!isCashOnly && (
-                                        <FormField
-                                            control={form.control}
-                                            name="categoryId"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>카테고리</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                        <FormControl>
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="카테고리 선택" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent>
-                                                            {categories.map((category) => (
-                                                                <SelectItem key={category.id} value={category.id}>
-                                                                    {category.name}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    )}
+                                    {/* 카테고리 — 현금 포함 항상 표시 */}
+                                    <FormField
+                                        control={form.control}
+                                        name="categoryId"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>카테고리</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="카테고리 선택" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {categories.map((category) => (
+                                                            <SelectItem key={category.id} value={category.id}>
+                                                                {category.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
                                 </div>
 
                                 {/* 현금 자산 안내 패널 */}
