@@ -330,11 +330,21 @@ export default function Home() {
 
   const isAllSelected = selectedCategoryIds.length === 0
 
-  // 카테고리 필터 레이블 (UI 표시용) — getCategoryName 정의 전이므로 직접 조회
+  // 드롭다운 버튼 레이블: 전체 / 기본 / 기본 + 금
   const categoryFilterLabel = useMemo(() => {
     if (isAllSelected) return '전체'
     const names = selectedCategoryIds.map(id => categories.find(c => c.id === id)?.name || '기본')
     return names.join(' + ')
+  }, [selectedCategoryIds, categories, isAllSelected])
+
+  // 카드 타이틀 레이블: 현재 총 자산 가치 / 기본 자산 가치 / 2개 자산 가치
+  const categoryTitleLabel = useMemo(() => {
+    if (isAllSelected) return '현재 총 자산 가치'
+    if (selectedCategoryIds.length === 1) {
+      const name = categories.find(c => c.id === selectedCategoryIds[0])?.name || '기본'
+      return `${name} 자산 가치`
+    }
+    return `${selectedCategoryIds.length}개 자산 가치`
   }, [selectedCategoryIds, categories, isAllSelected])
 
   // 카테고리 토글 헬퍼
@@ -713,7 +723,7 @@ export default function Home() {
               <div>
                 <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-widest flex items-center gap-2">
                   <Wallet className="h-4 w-4" />
-                  {isAllSelected ? '현재 총 자산 가치' : `${categoryFilterLabel} 자산 가치`}
+                  {categoryTitleLabel}
                 </CardTitle>
               </div>
               {/* 멀티 선택 카테고리 드롭다운 */}
