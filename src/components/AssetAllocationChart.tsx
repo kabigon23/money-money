@@ -230,7 +230,7 @@ export function AssetAllocationChart({ assets, tags, prices, baseCurrency, excha
                                     </span>
                                 ) : (
                                     items.map((item, i) => (
-                                        <span key={item.name} className="flex items-center gap-1">
+                                        <span key={`${combo.id}-${item.name}`} className="flex items-center gap-1">
                                             <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
                                             <span className="text-xs font-medium text-slate-700">{item.name}</span>
                                             {i < items.length - 1 && <span className="text-slate-400 text-xs font-bold">+</span>}
