@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useDailySnapshot } from '@/hooks/useDailySnapshot'
-import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key, Download } from 'lucide-react'
+import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key, Download, ChevronDown, Check } from 'lucide-react'
 import { UserPasswordChangeDialog } from '@/components/UserPasswordChangeDialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AssetDialog } from '@/components/AssetDialog'
@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 
@@ -151,10 +150,16 @@ export default function Home() {
   const [assets, setAssets] = useState<Asset[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [tags, setTags] = useState<Tag[]>([])
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(() => {
-    if (typeof window === 'undefined') return 'all'
-    return localStorage.getItem('moneymoney_category') || 'all'
+  // 선택된 카테고리 ID 목록. 빈 배열 = 전체
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const saved = localStorage.getItem('moneymoney_categories_v2')
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
   })
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
+  const categoryDropdownRef = useRef<HTMLDivElement>(null)
   const [baseCurrency, setBaseCurrency] = useState<'KRW' | 'USD'>(() => {
     if (typeof window === 'undefined') return 'KRW'
     return (localStorage.getItem('moneymoney_currency') as 'KRW' | 'USD') || 'KRW'
@@ -227,14 +232,19 @@ export default function Home() {
           }).catch(console.error)
         }
 
-        // 저장된 카테고리 ID가 실제로 존재하는지 검증 (삭제됐을 경우 전체로 fallback)
-        const savedCategory = localStorage.getItem('moneymoney_category')
-        if (savedCategory && savedCategory !== 'all') {
-          const exists = categoriesData.some((c: { id: string }) => c.id === savedCategory)
-          if (!exists) {
-            setSelectedCategoryId('all')
-            localStorage.removeItem('moneymoney_category')
-          }
+        // 저장된 카테고리 ID들이 실제로 존재하는지 검증 (삭제된 경우 제거)
+        const savedCategories = (() => {
+          try {
+            const raw = localStorage.getItem('moneymoney_categories_v2')
+            return raw ? (JSON.parse(raw) as string[]) : []
+          } catch { return [] }
+        })()
+        if (savedCategories.length > 0) {
+          const validIds = savedCategories.filter((id: string) =>
+            categoriesData.some((c: { id: string }) => c.id === id)
+          )
+          setSelectedCategoryIds(validIds)
+          localStorage.setItem('moneymoney_categories_v2', JSON.stringify(validIds))
         }
       } catch (error) {
         console.error('Failed to fetch data:', error)
@@ -318,17 +328,50 @@ export default function Home() {
     }
   }
 
+  const isAllSelected = selectedCategoryIds.length === 0
+
+  // 카테고리 필터 레이블 (UI 표시용)
+  const categoryFilterLabel = useMemo(() => {
+    if (isAllSelected) return '전체'
+    if (selectedCategoryIds.length === 1) return getCategoryName(selectedCategoryIds[0])
+    return `${selectedCategoryIds.length}개 카테고리`
+  }, [selectedCategoryIds, categories])
+
+  // 카테고리 토글 헬퍼
+  const toggleCategory = (id: string) => {
+    setSelectedCategoryIds(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      localStorage.setItem('moneymoney_categories_v2', JSON.stringify(next))
+      return next
+    })
+  }
+  const selectAllCategories = () => {
+    setSelectedCategoryIds([])
+    localStorage.setItem('moneymoney_categories_v2', JSON.stringify([]))
+  }
+
+  // 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setCategoryDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   const cashAssets = useMemo(() => {
     const allCash = assets.filter(a => isCashAsset(a.exchange))
-    if (selectedCategoryId === 'all') return allCash
-    return allCash.filter(a => a.categoryId === selectedCategoryId)
-  }, [assets, selectedCategoryId])
+    if (isAllSelected) return allCash
+    return allCash.filter(a => selectedCategoryIds.includes(a.categoryId))
+  }, [assets, selectedCategoryIds, isAllSelected])
 
   const filteredAssets = useMemo(() => {
     const nonCash = assets.filter(a => !isCashAsset(a.exchange))
-    if (selectedCategoryId === 'all') return nonCash
-    return nonCash.filter(a => a.categoryId === selectedCategoryId)
-  }, [assets, selectedCategoryId])
+    if (isAllSelected) return nonCash
+    return nonCash.filter(a => selectedCategoryIds.includes(a.categoryId))
+  }, [assets, selectedCategoryIds, isAllSelected])
 
   // 포트폴리오 요약 계산
   const summary = useMemo(() => {
@@ -427,7 +470,12 @@ export default function Home() {
     setAssets(newAssets)
     await persistAssets(newAssets)
 
-    if (selectedCategoryId === id) setSelectedCategoryId('all')
+    // 삭제된 카테고리가 선택 상태에 있으면 제거
+    setSelectedCategoryIds(prev => {
+      const next = prev.filter(x => x !== id)
+      localStorage.setItem('moneymoney_categories_v2', JSON.stringify(next))
+      return next
+    })
   }
 
   const addTag = async (name: string, color: string) => {
@@ -665,20 +713,57 @@ export default function Home() {
               <div>
                 <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-widest flex items-center gap-2">
                   <Wallet className="h-4 w-4" />
-                  {selectedCategoryId === 'all' ? '현재 총 자산 가치' : `${getCategoryName(selectedCategoryId)} 자산 가치`}
+                  {isAllSelected ? '현재 총 자산 가치' : `${categoryFilterLabel} 자산 가치`}
                 </CardTitle>
               </div>
-              <Select value={selectedCategoryId} onValueChange={(v) => { setSelectedCategoryId(v); if (v === 'all') localStorage.removeItem('moneymoney_category'); else localStorage.setItem('moneymoney_category', v) }}>
-                <SelectTrigger className="w-[130px] h-8 text-xs shrink-0">
-                  <SelectValue placeholder="카테고리 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  {categories.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* 멀티 선택 카테고리 드롭다운 */}
+              <div ref={categoryDropdownRef} className="relative">
+                <button
+                  onClick={() => setCategoryDropdownOpen(v => !v)}
+                  className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-md border bg-background hover:bg-muted transition-colors shrink-0 min-w-[130px] justify-between"
+                >
+                  <span className="truncate">{categoryFilterLabel}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform ${categoryDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {categoryDropdownOpen && (
+                  <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border bg-popover shadow-xl overflow-hidden">
+                    <button
+                      onClick={selectAllCategories}
+                      className={`flex items-center gap-2 w-full px-3 py-2.5 text-xs font-semibold text-left hover:bg-muted transition-colors ${
+                        isAllSelected ? 'text-primary bg-primary/5' : 'text-muted-foreground'
+                      }`}
+                    >
+                      <span className={`flex items-center justify-center w-4 h-4 rounded border-2 shrink-0 transition-colors ${
+                        isAllSelected ? 'bg-primary border-primary' : 'border-input'
+                      }`}>
+                        {isAllSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                      </span>
+                      전체
+                    </button>
+                    <div className="h-px bg-border mx-2" />
+                    {categories.map(c => {
+                      const checked = selectedCategoryIds.includes(c.id)
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => toggleCategory(c.id)}
+                          className={`flex items-center gap-2 w-full px-3 py-2.5 text-xs font-medium text-left hover:bg-muted transition-colors ${
+                            checked ? 'text-primary bg-primary/5' : 'text-foreground'
+                          }`}
+                        >
+                          <span className={`flex items-center justify-center w-4 h-4 rounded border-2 shrink-0 transition-colors ${
+                            checked ? 'bg-primary border-primary' : 'border-input'
+                          }`}>
+                            {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                          </span>
+                          {c.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="flex items-end gap-4 flex-wrap">
@@ -696,7 +781,7 @@ export default function Home() {
               <div className="space-y-1">
                 <CardTitle>자산 비중 (태그별)</CardTitle>
                 <CardDescription>
-                  {selectedCategoryId === 'all' ? '전체 카테고리' : `${getCategoryName(selectedCategoryId)} 카테고리`} 내의 태그 분포
+                  {isAllSelected ? '전체 카테고리' : `${categoryFilterLabel} 카테고리`} 내의 태그 분포
                 </CardDescription>
               </div>
             </CardHeader>
@@ -719,9 +804,9 @@ export default function Home() {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <span className="text-xl">💵</span> 현금 자산
-                  {selectedCategoryId !== 'all' && (
+                  {!isAllSelected && (
                     <span className="text-xs font-normal text-muted-foreground ml-1">
-                      · {getCategoryName(selectedCategoryId)}
+                      · {categoryFilterLabel}
                     </span>
                   )}
                 </CardTitle>
@@ -745,9 +830,9 @@ export default function Home() {
             <CardContent className="pt-2 flex-1 flex flex-col gap-3">
               {cashAssets.length === 0 ? (
                 <div className="py-6 text-center text-muted-foreground border-2 border-dashed border-yellow-200 rounded-xl text-sm">
-                  {selectedCategoryId === 'all'
+                  {isAllSelected
                     ? '아래 버튼으로 현금을 추가해 보세요'
-                    : `‘${getCategoryName(selectedCategoryId)}’ 카테고리에 등록된 현금이 없습니다`
+                    : `‘${categoryFilterLabel}’ 카테고리에 등록된 현금이 없습니다`
                   }
                 </div>
               ) : (
@@ -813,7 +898,7 @@ export default function Home() {
                   tags={tags}
                   isCashOnly
                   defaultCashExchange="CASH_KRW"
-                  defaultCategoryId={selectedCategoryId === 'all' ? 'default' : selectedCategoryId}
+                  defaultCategoryId={isAllSelected || selectedCategoryIds.length !== 1 ? 'default' : selectedCategoryIds[0]}
                   trigger={
                     <Button
                       variant="outline"
@@ -830,7 +915,7 @@ export default function Home() {
                   tags={tags}
                   isCashOnly
                   defaultCashExchange="CASH_USD"
-                  defaultCategoryId={selectedCategoryId === 'all' ? 'default' : selectedCategoryId}
+                  defaultCategoryId={isAllSelected || selectedCategoryIds.length !== 1 ? 'default' : selectedCategoryIds[0]}
                   trigger={
                     <Button
                       variant="outline"
