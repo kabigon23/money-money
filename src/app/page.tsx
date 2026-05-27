@@ -330,12 +330,12 @@ export default function Home() {
 
   const isAllSelected = selectedCategoryIds.length === 0
 
-  // 카테고리 필터 레이블 (UI 표시용)
+  // 카테고리 필터 레이블 (UI 표시용) — getCategoryName 정의 전이므로 직접 조회
   const categoryFilterLabel = useMemo(() => {
     if (isAllSelected) return '전체'
-    if (selectedCategoryIds.length === 1) return getCategoryName(selectedCategoryIds[0])
-    return `${selectedCategoryIds.length}개 카테고리`
-  }, [selectedCategoryIds, categories])
+    const names = selectedCategoryIds.map(id => categories.find(c => c.id === id)?.name || '기본')
+    return names.join(' + ')
+  }, [selectedCategoryIds, categories, isAllSelected])
 
   // 카테고리 토글 헬퍼
   const toggleCategory = (id: string) => {
