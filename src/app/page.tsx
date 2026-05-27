@@ -31,6 +31,7 @@ import { useAuth } from '@/context/AuthContext'
 
 
 const isCashAsset = (exchange: string) => exchange === 'CASH_KRW' || exchange === 'CASH_USD'
+const isGoldAsset = (exchange: string) => exchange === 'GOLD_KRX'
 
 const INITIAL_ASSETS: Asset[] = [
   {
@@ -297,11 +298,13 @@ export default function Home() {
   // 통화 변환 헬퍼
   const getPriceInBase = (price: number, assetExchange: string) => {
     if (baseCurrency === 'KRW') {
+      // USD 계열은 환율 곱함, KRW 계열(한국주식, 금)&현금원화는 그대로
       return (assetExchange === 'US' || assetExchange === 'CRYPTO' || assetExchange === 'CASH_USD')
         ? price * exchangeRate
         : price
     } else {
-      return (assetExchange === 'KR' || assetExchange === 'CASH_KRW')
+      // USD 모드: KRW 계열은 환율 나눔
+      return (assetExchange === 'KR' || assetExchange === 'CASH_KRW' || assetExchange === 'GOLD_KRX')
         ? price / exchangeRate
         : price
     }
@@ -486,6 +489,7 @@ export default function Home() {
       const exchangeLabel =
         asset.exchange === 'CASH_KRW' ? '현금 KRW' :
         asset.exchange === 'CASH_USD' ? '현금 USD' :
+        asset.exchange === 'GOLD_KRX' ? 'KRX 금현물' :
         asset.exchange
       const categoryLabel = isCash ? '현금 자산' : getCategoryName(asset.categoryId)
       const section = isCash ? '현금 자산' : '투자 자산'

@@ -20,20 +20,67 @@ function getMarketSession(quoteType: string | undefined, marketState: string | u
     }
 }
 
+/** KRX 금현물 시세를 /api/gold 에서 조회하여 PriceInfo 형태로 반환 */
+async function fetchGoldKrxPrice(baseUrl: string): Promise<Record<string, any>> {
+    try {
+        const res = await fetch(`${baseUrl}/api/gold?term=5M`, { next: { revalidate: 1800 } })
+        if (!res.ok) return {}
+        const data = await res.json()
+        const latest = data?.latest
+        if (!latest) return {}
+        return {
+            GOLD_KRX: {
+                symbol: 'GOLD_KRX',
+                currentPrice: latest.clpr,          // 원/g
+                change: latest.vs,
+                changePercent: latest.fltRt,
+                regularPrice: latest.clpr,
+                regularChange: latest.vs,
+                regularChangePercent: latest.fltRt,
+                preMarketPrice: null,
+                preMarketChange: null,
+                preMarketChangePercent: null,
+                postMarketPrice: null,
+                postMarketChange: null,
+                postMarketChangePercent: null,
+                marketSession: 'CLOSED' as const,
+                lastUpdated: Date.now(),
+            }
+        }
+    } catch {
+        return {}
+    }
+}
+
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const symbolsRaw = searchParams.get('symbols')
-    const symbols = symbolsRaw ? symbolsRaw.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0) : []
+    const allSymbols = symbolsRaw ? symbolsRaw.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0) : []
+
+    // GOLD_KRX 와 일반 심볼 분리
+    const hasGold = allSymbols.includes('GOLD_KRX')
+    const symbols  = allSymbols.filter(s => s !== 'GOLD_KRX')
 
     try {
-        const promises: Promise<any>[] = [yahooFinance.quote('USDKRW=X')]
+        // Yahoo Finance 호출 (금 제외)
+        const yfPromises: Promise<any>[] = [yahooFinance.quote('USDKRW=X')]
         if (symbols.length > 0) {
-            promises.unshift(yahooFinance.quote(symbols))
+            yfPromises.unshift(yahooFinance.quote(symbols))
         }
 
-        const resultsRaw = await Promise.all(promises)
-        const priceResults = symbols.length > 0 ? resultsRaw[0] : []
-        const exchangeRateResult = symbols.length > 0 ? resultsRaw[1] : resultsRaw[0]
+        // KRX 금시세 호출 (금 있을 때만)
+        const origin = request.headers.get('host')
+            ? `${request.nextUrl.protocol}//${request.headers.get('host')}`
+            : 'http://localhost:3000'
+        const goldPromise = hasGold ? fetchGoldKrxPrice(origin) : Promise.resolve({})
+
+        const [yfResults, goldPrices] = await Promise.all([
+            Promise.all(yfPromises),
+            goldPromise,
+        ])
+
+        const priceResults = symbols.length > 0 ? yfResults[0] : []
+        const exchangeRateResult = symbols.length > 0 ? yfResults[1] : yfResults[0]
         const results: Record<string, any> = {}
 
         const quotes = Array.isArray(priceResults) ? priceResults : [priceResults]
@@ -84,6 +131,9 @@ export async function GET(request: NextRequest) {
                 lastUpdated: Date.now()
             }
         })
+
+        // KRX 금시세 병합
+        Object.assign(results, goldPrices)
 
         const exchangeRate = (exchangeRateResult as any)?.regularMarketPrice || 1350
 

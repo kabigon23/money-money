@@ -40,16 +40,20 @@ type CashExchange = typeof CASH_EXCHANGES[number]
 const isCash = (exchange: string): exchange is CashExchange =>
     CASH_EXCHANGES.includes(exchange as CashExchange)
 
+const isGold = (exchange: string) => exchange === 'GOLD_KRX'
+
 const CASH_META: Record<CashExchange, { symbol: string; name: string; unit: string; label: string }> = {
     CASH_KRW: { symbol: 'CASH_KRW', name: '원화 현금', unit: '원', label: '원화 (KRW)' },
     CASH_USD: { symbol: 'CASH_USD', name: '달러 현금', unit: 'USD', label: '달러 (USD)' },
 }
 
+const GOLD_META = { symbol: 'GOLD_KRX', name: 'KRX 금현물', unit: 'g', label: 'KRX 금현물 (원/g)' }
+
 const formSchema = z.object({
     symbol: z.string().min(1, '종목 코드를 입력하세요.'),
     name: z.string().min(1, '종목명을 입력하세요.'),
     quantity: z.coerce.number().min(0, '수량은 0 이상이어야 합니다.'),
-    exchange: z.enum(['US', 'KR', 'CRYPTO', 'CASH_KRW', 'CASH_USD']),
+    exchange: z.enum(['US', 'KR', 'CRYPTO', 'CASH_KRW', 'CASH_USD', 'GOLD_KRX']),
     categoryId: z.string().min(1, '카테고리를 선택하세요.'),
     tagId: z.string().nullable().default(null),
     initialAvgPrice: z.coerce.number().min(0).optional(),
@@ -145,12 +149,15 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
         }
     }, [open])
 
-    // 현금 자산 선택 시 symbol/name 자동 설정
+    // 현금/금 자산 선택 시 symbol/name 자동 설정
     useEffect(() => {
         if (!isEdit && isCash(watchedExchange)) {
             const meta = CASH_META[watchedExchange as CashExchange]
             form.setValue('symbol', meta.symbol)
             form.setValue('name', meta.name)
+        } else if (!isEdit && isGold(watchedExchange)) {
+            form.setValue('symbol', GOLD_META.symbol)
+            form.setValue('name', GOLD_META.name)
         }
     }, [watchedExchange, isEdit, form])
 
@@ -228,13 +235,15 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
     }
 
     const isCashAsset = isCash(watchedExchange)
+    const isGoldAsset = isGold(watchedExchange)
+    const isAutoAsset  = isCashAsset || isGoldAsset   // symbol/name 자동 설정되는 자산
     const cashMeta = isCashAsset ? CASH_META[watchedExchange as CashExchange] : null
-    const quantityUnit = cashMeta?.unit ?? '주/개'
+    const quantityUnit = isGoldAsset ? GOLD_META.unit : cashMeta?.unit ?? '주/개'
 
     const formatPrice = (price: number | undefined, exchange: string) => {
         if (!price || price === 0) return null
         if (exchange === 'US' || exchange === 'CRYPTO') return `$${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        return `${price.toLocaleString()}원`
+        return `${price.toLocaleString()}원`  // KR, GOLD_KRX 모두 원화
     }
 
     return (
@@ -295,8 +304,9 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                                         ) : (
                                                             <>
                                                                 <SelectItem value="US">🇺🇸 미국 (US)</SelectItem>
-                                                                <SelectItem value="KR">🇺🇷 한국 (KR)</SelectItem>
+                                                                <SelectItem value="KR">🇰🇷 한국 (KR)</SelectItem>
                                                                 <SelectItem value="CRYPTO">₿ 가상자산</SelectItem>
+                                                                <SelectItem value="GOLD_KRX">🥇 KRX 금현물</SelectItem>
                                                                 <SelectItem value="CASH_KRW">💵 현금 · 원화 (KRW)</SelectItem>
                                                                 <SelectItem value="CASH_USD">💵 현금 · 달러 (USD)</SelectItem>
                                                             </>
@@ -346,8 +356,20 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                     </div>
                                 )}
 
-                                {/* 종목 검색 (추가 모드 + 현금 아닐 때만) */}
-                                {!isEdit && !isCashAsset && (
+                                {/* KRX 금현물 안내 패널 */}
+                                {isGoldAsset && (
+                                    <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-3 space-y-1">
+                                        <p className="text-xs font-bold text-yellow-700">
+                                            🥇 KRX 금현물 — 공공데이터 KRX 금시장 시세 자동 반영
+                                        </p>
+                                        <p className="text-xs text-yellow-600">
+                                            종목 코드·이름이 자동 설정됩니다. 보유 수량(g)을 아래에 입력하세요. 현재가는 원/g 기준입니다.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* 종목 검색 (추가 모드 + 현금/금 아닐 때만) */}
+                                {!isEdit && !isAutoAsset && (
                                     <div className="rounded-xl border bg-slate-50 p-3 space-y-1">
                                         <p className="text-xs font-bold text-slate-500 mb-2">🔍 종목 검색으로 빠르게 입력</p>
                                         <TickerSearch
@@ -360,7 +382,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                     </div>
                                 )}
 
-                                {/* 종목 코드 / 이름 (현금이면 비활성화) */}
+                                {/* 종목 코드 / 이름 (현금/금이면 비활성화) */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
@@ -372,8 +394,8 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                                     <Input
                                                         placeholder="AAPL"
                                                         {...field}
-                                                        disabled={isCashAsset && !isEdit}
-                                                        className={isCashAsset && !isEdit ? 'opacity-60 bg-slate-100' : ''}
+                                                        disabled={isAutoAsset && !isEdit}
+                                                        className={isAutoAsset && !isEdit ? 'opacity-60 bg-slate-100' : ''}
                                                     />
                                                 </FormControl>
                                                 <FormMessage />
@@ -390,8 +412,8 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                                     <Input
                                                         placeholder="애플"
                                                         {...field}
-                                                        disabled={isCashAsset && !isEdit}
-                                                        className={isCashAsset && !isEdit ? 'opacity-60 bg-slate-100' : ''}
+                                                        disabled={isAutoAsset && !isEdit}
+                                                        className={isAutoAsset && !isEdit ? 'opacity-60 bg-slate-100' : ''}
                                                     />
                                                 </FormControl>
                                                 <FormMessage />
@@ -515,8 +537,8 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                     )}
                                 />
 
-                                {/* 평단가 섹션 (비현금 자산만) */}
-                                {!isCashAsset && (
+                                {/* 평단가 섹션 (비현금·비금 자산만 — 금은 별도 자동시세 반영) */}
+                                {!isCashAsset && !isGoldAsset && (
                                     <div className="rounded-2xl border bg-amber-50 border-amber-200 p-4 space-y-3">
                                         <div className="flex items-center gap-2">
                                             <TrendingUp className="w-4 h-4 text-amber-600" />
@@ -542,7 +564,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                                         className="h-10 font-bold bg-white border-amber-200 focus-visible:ring-amber-400"
                                                     />
                                                     <span className="text-xs text-amber-500 shrink-0">
-                                                        {watchedExchange === 'KR' ? '원' : watchedExchange === 'US' || watchedExchange === 'CRYPTO' ? 'USD' : ''}
+                                                        {(watchedExchange as string) === 'KR' || (watchedExchange as string) === 'GOLD_KRX' ? '원' : watchedExchange === 'US' || watchedExchange === 'CRYPTO' ? 'USD' : ''}
                                                     </span>
                                                 </div>
                                                 <p className="text-[11px] text-amber-500">
