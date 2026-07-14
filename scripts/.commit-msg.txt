@@ -1,0 +1,5 @@
+feat: improve category filter labels
+
+Separate dropdown label and card title label:
+- Dropdown button: shows joined names (e.g. '기본 + 금')
+- Card title: '현재 총 자산 가치' / '기본 자산 가치' / '2개 자산 가치'

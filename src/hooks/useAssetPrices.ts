@@ -1,6 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Asset, PriceInfo } from '@/types'
 import { MarketService } from '@/services/market'
+
+// 가격 조회가 필요 없는 자산 타입
+const NON_TRADEABLE = new Set(['CASH_KRW', 'CASH_USD', 'GOLD_KRX'])
 
 export function useAssetPrices(assets: Asset[]) {
     const [prices, setPrices] = useState<Record<string, PriceInfo>>({})
@@ -8,11 +11,17 @@ export function useAssetPrices(assets: Asset[]) {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<Error | null>(null)
 
-    const fetchPrices = useCallback(async () => {
+    // CASH/GOLD는 Yahoo Finance에 보내지 않음
+    const tradeableAssets = useMemo(
+        () => assets.filter(a => !NON_TRADEABLE.has(a.exchange)),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [JSON.stringify(assets.map(a => a.symbol + a.exchange))]
+    )
 
+    const fetchPrices = useCallback(async () => {
         setLoading(true)
         try {
-            const symbols = assets.map(a => ({ symbol: a.symbol, exchange: a.exchange }))
+            const symbols = tradeableAssets.map(a => ({ symbol: a.symbol, exchange: a.exchange }))
             const { prices: newPrices, exchangeRate: newRate } = await MarketService.getPrices(symbols)
 
             setPrices(newPrices)
@@ -23,11 +32,10 @@ export function useAssetPrices(assets: Asset[]) {
         } finally {
             setLoading(false)
         }
-    }, [assets])
+    }, [tradeableAssets])
 
     useEffect(() => {
         fetchPrices()
-
         const interval = setInterval(fetchPrices, 60000)
         return () => clearInterval(interval)
     }, [fetchPrices])
