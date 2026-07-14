@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import YahooFinance from 'yahoo-finance2'
 
-const yahooFinance = new YahooFinance();
+const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 // 미국 주식 장 구분 (EST 기준)
 // Pre-market:  04:00 ~ 09:30  → KST 18:00 ~ 23:30
@@ -139,7 +139,12 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ prices: results, exchangeRate })
     } catch (error: any) {
-        console.error('Yahoo Finance Error:', error)
+        console.error('[/api/prices] Yahoo Finance Error:', {
+            message: error?.message,
+            name: error?.name,
+            stack: error?.stack?.slice(0, 500),
+            symbols: symbols,
+        })
         return NextResponse.json({ error: 'Failed to fetch market data', details: error.message }, { status: 500 })
     }
 }
