@@ -87,8 +87,9 @@ async function fetchRange(
     endBasDt: string,
     numOfRows = 500,
 ): Promise<any[]> {
+    // serviceKey에 +, =, / 등 특수문자가 포함된 Encoding 키는 URLSearchParams에 넣으면
+    // 이중 인코딩되어 인증 실패가 발생하므로, serviceKey는 직접 문자열로 붙임
     const params = new URLSearchParams({
-        serviceKey,
         resultType: 'json',
         numOfRows:  String(numOfRows),
         pageNo:     '1',
@@ -97,7 +98,7 @@ async function fetchRange(
         endBasDt,
     })
 
-    const res = await fetch(`${BASE_URL}?${params}`, {
+    const res = await fetch(`${BASE_URL}?serviceKey=${serviceKey}&${params}`, {
         next: { revalidate: 1800 },  // 30분 서버 캐시
     })
     if (!res.ok) throw new Error(`공공데이터포털 API 오류: ${res.status}`)
@@ -118,8 +119,8 @@ async function fetchRange(
  * 주말/공휴일 폴백용
  */
 async function fetchByDate(serviceKey: string, basDt: string): Promise<any[]> {
+    // serviceKey 이중 인코딩 방지 — serviceKey는 직접 문자열로 붙임
     const params = new URLSearchParams({
-        serviceKey,
         resultType: 'json',
         numOfRows:  '10',
         pageNo:     '1',
@@ -127,7 +128,7 @@ async function fetchByDate(serviceKey: string, basDt: string): Promise<any[]> {
         basDt,
     })
 
-    const res = await fetch(`${BASE_URL}?${params}`, {
+    const res = await fetch(`${BASE_URL}?serviceKey=${serviceKey}&${params}`, {
         next: { revalidate: 1800 },
     })
     if (!res.ok) throw new Error(`공공데이터포털 API 오류: ${res.status}`)
