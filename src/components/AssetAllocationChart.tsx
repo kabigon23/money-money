@@ -72,7 +72,7 @@ export function AssetAllocationChart({ assets, tags, prices, baseCurrency, excha
         if (baseCurrency === 'KRW') {
             return (assetExchange === 'US' || assetExchange === 'CRYPTO' || assetExchange === 'CASH_USD') ? price * exchangeRate : price
         } else {
-            return (assetExchange === 'KR' || assetExchange === 'CASH_KRW') ? price / exchangeRate : price
+            return (assetExchange === 'KR' || assetExchange === 'CASH_KRW' || assetExchange === 'GOLD_KRX') ? price / exchangeRate : price
         }
     }
 
