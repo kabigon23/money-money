@@ -43,8 +43,6 @@ npx tsc --noEmit   # 현재 통과
 
 - **인증이 라우트마다 일관되지 않다.** `watchlist`, `tag-combos`, `auth/me`는 세션 쿠키에서 userId를 얻지만, `assets`, `categories`, `tags`, `snapshot`, `daily-snapshot`(브라우저 호출), `admin/wipe-user`는 요청의 `userId`를 그대로 신뢰한다. 새 라우트는 세션 방식을 따를 것. 기존 라우트를 건드릴 때는 이 점을 염두에 둔다.
 - `/api/auth/seed`는 공개 엔드포인트이고 `MOCK_USERS`에 평문 초기 비밀번호가 있다.
-- `scripts/patch-category.mjs`, `scripts/debug-patch.mjs`는 과거에 `page.tsx`를 문자열 치환으로 패치하던 일회성 스크립트다. 실행하지 말 것.
-- README의 "Next.js 15"는 오래된 표기이며 실제는 16이다.
 
 ## 작업 규칙
 

@@ -28,9 +28,9 @@
 
 | 분류 | 기술 |
 |---|---|
-| Framework | Next.js 15 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | Language | TypeScript |
-| Styling | Tailwind CSS |
+| Styling | Tailwind CSS v4 |
 | UI | shadcn/ui |
 | Database | Redis (Upstash / Redis Cloud) |
 | Auth | bcryptjs + HttpOnly Cookie Session |
