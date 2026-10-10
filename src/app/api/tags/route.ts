@@ -1,39 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { redis } from '@/lib/redis'
-import { Tag } from '@/types'
+import { requireUser } from '@/lib/api-auth'
+import { parseBody, tagsBodySchema } from '@/lib/schemas'
 
 const getTagsKey = (userId: string) => `tags:${userId}`
 
-export async function GET(request: NextRequest) {
+export async function GET() {
+    const auth = await requireUser()
+    if ('error' in auth) return auth.error
+
     try {
-        const { searchParams } = new URL(request.url)
-        const userId = searchParams.get('userId')
-
-        if (!userId) {
-            return NextResponse.json({ error: 'UserId is required' }, { status: 400 })
-        }
-
-        const data = await redis.get(getTagsKey(userId))
-        const tags = data ? JSON.parse(data) : []
-        return NextResponse.json(tags)
-    } catch (error: any) {
-        return NextResponse.json({ error: 'Failed to fetch tags', details: error.message }, { status: 500 })
+        const data = await redis.get(getTagsKey(auth.user.id))
+        return NextResponse.json(data ? JSON.parse(data) : [])
+    } catch (error) {
+        console.error('[tags] GET error:', error)
+        return NextResponse.json({ error: 'Failed to fetch tags' }, { status: 500 })
     }
 }
 
 export async function POST(request: NextRequest) {
+    const auth = await requireUser()
+    if ('error' in auth) return auth.error
+
     try {
-        const { searchParams } = new URL(request.url)
-        const userId = searchParams.get('userId')
-
-        if (!userId) {
-            return NextResponse.json({ error: 'UserId is required' }, { status: 400 })
-        }
-
-        const tags = await request.json()
-        await redis.set(getTagsKey(userId), JSON.stringify(tags))
+        const parsed = await parseBody(request, tagsBodySchema)
+        if ('error' in parsed) return parsed.error
+        await redis.set(getTagsKey(auth.user.id), JSON.stringify(parsed.data))
         return NextResponse.json({ success: true })
-    } catch (error: any) {
-        return NextResponse.json({ error: 'Failed to save tags', details: error.message }, { status: 500 })
+    } catch (error) {
+        console.error('[tags] POST error:', error)
+        return NextResponse.json({ error: 'Failed to save tags' }, { status: 500 })
     }
 }

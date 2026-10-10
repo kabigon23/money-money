@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
-import { Asset, Tag } from '@/types'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, type PieLabelRenderProps } from 'recharts'
+import { Asset, PriceInfo, Tag } from '@/types'
 import { Plus, X } from 'lucide-react'
 
 interface AssetAllocationChartProps {
     assets: Asset[]
     tags: Tag[]
-    prices: Record<string, any>
+    prices: Record<string, PriceInfo>
     baseCurrency: 'KRW' | 'USD'
     exchangeRate: number
     includeCash: boolean
@@ -20,7 +20,8 @@ interface Combo {
     tagNames: string[]
 }
 
-const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
+const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: PieLabelRenderProps) => {
+    if (cx == null || cy == null || midAngle == null || innerRadius == null || outerRadius == null || percent == null) return null
     const RADIAN = Math.PI / 180
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5
     const x = cx + radius * Math.cos(-midAngle * RADIAN)
@@ -191,7 +192,7 @@ export function AssetAllocationChart({ assets, tags, prices, baseCurrency, excha
                         </Pie>
                         <Tooltip
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '13px' }}
-                            formatter={(value: any, name: any, props: any) => {
+                            formatter={(value, name, props) => {
                                 if (typeof value !== 'number') return value
                                 const pct = `${((props.payload.percent || 0) * 100).toFixed(1)}%`
                                 const formatted = baseCurrency === 'KRW'

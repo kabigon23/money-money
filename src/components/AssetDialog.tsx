@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Minus, History, Clock, ArrowRight, TrendingUp } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm, SubmitHandler } from 'react-hook-form'
+import { useForm, useWatch, SubmitHandler, Resolver } from 'react-hook-form'
 import * as z from 'zod'
 import { TickerSearch, TickerResult } from '@/components/TickerSearch'
 
@@ -83,7 +83,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
     const isEdit = !!initialAsset
 
     const form = useForm<FormValues>({
-        resolver: zodResolver(formSchema) as any,
+        resolver: zodResolver(formSchema) as unknown as Resolver<FormValues>,
         defaultValues: initialAsset ? {
             symbol: initialAsset.symbol,
             name: initialAsset.name,
@@ -110,7 +110,8 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
         },
     })
 
-    const watchedExchange = form.watch('exchange')
+    const watchedExchange = useWatch({ control: form.control, name: 'exchange' })
+    const watchedTagId = useWatch({ control: form.control, name: 'tagId' })
 
     // Dialog가 열릴 때 초기화
     useEffect(() => {
@@ -147,6 +148,8 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                 }
             }
         }
+    // 다이얼로그가 열릴 때만 폼을 초기화한다 (props 변경마다 입력 중인 값을 덮어쓰지 않도록 의도적으로 [open]만 의존)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open])
 
     // 현금/금 자산 선택 시 symbol/name 자동 설정
@@ -224,7 +227,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
             // 신규 추가 시 초기 매수가가 있으면 avgPrice 설정
             const initPrice = finalValues.initialAvgPrice
             const initAvg = initPrice && initPrice > 0 ? initPrice : undefined
-            onSave({ ...finalValues, avgPrice: initAvg } as any)
+            onSave({ ...finalValues, avgPrice: initAvg } as Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>)
         }
         setOpen(false)
         if (!isEdit) {
@@ -606,7 +609,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                         <FormLabel className="text-sm font-semibold">태그 선택</FormLabel>
                                         <div className="flex flex-wrap gap-2">
                                             {tags.map((tag) => {
-                                                const isSelected = form.watch('tagId') === tag.id
+                                                const isSelected = watchedTagId === tag.id
                                                 return (
                                                     <Button
                                                         key={tag.id}

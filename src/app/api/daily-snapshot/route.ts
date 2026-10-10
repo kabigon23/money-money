@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { redis } from '@/lib/redis'
 import YahooFinance from 'yahoo-finance2'
 import { Asset } from '@/types'
+import { requireUser } from '@/lib/api-auth'
+import { fetchGoldPrices } from '@/lib/gold'
+import type { YfQuote } from '@/lib/yahoo'
 
 const yahooFinance = new YahooFinance()
 
@@ -38,23 +41,31 @@ async function fetchPricesForAssets(assets: Asset[]): Promise<{
   const tradableAssets = assets.filter(a =>
     a.exchange !== 'CASH_KRW' && a.exchange !== 'CASH_USD'
   )
-  const symbols = [...new Set(tradableAssets.map(a => a.symbol))]
+  // 금현물은 Yahoo Finance에 없으므로 별도 KRX API(원/g)로 조회한다
+  const hasGold = tradableAssets.some(a => a.exchange === 'GOLD_KRX')
+  const symbols = [...new Set(
+    tradableAssets.filter(a => a.exchange !== 'GOLD_KRX').map(a => a.symbol)
+  )]
 
   try {
-    const promises: Promise<any>[] = [yahooFinance.quote('USDKRW=X')]
-    if (symbols.length > 0) {
-      promises.unshift(yahooFinance.quote(symbols))
-    }
+    const quotesPromise = symbols.length > 0
+      ? (yahooFinance.quote(symbols) as Promise<unknown> as Promise<YfQuote[]>)
+      : Promise.resolve([] as YfQuote[])
+    const fxPromise = yahooFinance.quote('USDKRW=X') as Promise<unknown> as Promise<YfQuote>
 
-    const resultsRaw = await Promise.all(promises)
-    const priceResults = symbols.length > 0 ? resultsRaw[0] : []
-    const exchangeRateResult = symbols.length > 0 ? resultsRaw[1] : resultsRaw[0]
-    const exchangeRate: number = (exchangeRateResult as any)?.regularMarketPrice || 1350
+    const goldPromise = hasGold
+      ? fetchGoldPrices('5M').then(r => r.latest?.clpr ?? null).catch(e => {
+          console.error('[daily-snapshot] 금 시세 조회 실패:', e)
+          return null
+        })
+      : Promise.resolve(null)
+
+    const [quotes, exchangeRateResult, goldPrice] = await Promise.all([quotesPromise, fxPromise, goldPromise])
+    const exchangeRate: number = exchangeRateResult?.regularMarketPrice || 1350
 
     const prices: Record<string, number> = {}
-    const quotes = Array.isArray(priceResults) ? priceResults : (priceResults ? [priceResults] : [])
 
-    quotes.forEach((quote: any) => {
+    quotes.forEach((quote) => {
       if (!quote?.symbol) return
       const marketState = quote.marketState
       let price = quote.regularMarketPrice
@@ -67,6 +78,13 @@ async function fetchPricesForAssets(assets: Asset[]): Promise<{
 
       prices[quote.symbol] = price
     })
+
+    // 금 심볼은 자산에 저장된 symbol(GOLD_KRX)로 매핑 — calcValuation이 symbol로 가격을 찾는다
+    if (goldPrice) {
+      for (const a of tradableAssets) {
+        if (a.exchange === 'GOLD_KRX') prices[a.symbol] = goldPrice
+      }
+    }
 
     return { prices, exchangeRate }
   } catch (e) {
@@ -95,7 +113,7 @@ function calcValuation(asset: Asset, priceMap: Record<string, number>, exchangeR
     const usd = rawPrice * quantity
     return { krw: usd * exchangeRate, usd }
   } else {
-    // KR
+    // KR, GOLD_KRX (원화 기준 가격: GOLD_KRX는 원/g)
     const krw = rawPrice * quantity
     return { krw, usd: krw / exchangeRate }
   }
@@ -106,15 +124,23 @@ function calcValuation(asset: Asset, priceMap: Record<string, number>, exchangeR
 // Query params: userId, startDate (YYYY-MM-DD), endDate (YYYY-MM-DD), symbol(optional)
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
+  const auth = await requireUser()
+  if ('error' in auth) return auth.error
+
   try {
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
+    // 관리자만 다른 유저의 스냅샷을 조회할 수 있다
+    const requestedUserId = searchParams.get('userId')
+    if (requestedUserId && requestedUserId !== auth.user.id && auth.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 })
+    }
+    const userId = requestedUserId ?? auth.user.id
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const symbol = searchParams.get('symbol')
 
-    if (!userId || !startDate || !endDate) {
-      return NextResponse.json({ error: 'userId, startDate, endDate are required' }, { status: 400 })
+    if (!startDate || !endDate) {
+      return NextResponse.json({ error: 'startDate, endDate are required' }, { status: 400 })
     }
 
     // 날짜 범위 생성
@@ -172,16 +198,17 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json({ data })
-  } catch (error: any) {
+  } catch (error) {
     console.error('[daily-snapshot] GET 오류:', error)
-    return NextResponse.json({ error: 'Failed to get snapshot', details: error.message }, { status: 500 })
+    const details = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: 'Failed to get snapshot', details }, { status: 500 })
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST: 현재 자산 평가금액을 오늘 날짜로 저장
-// Query params: userId (cron 호출 시), cron=true
-// Body (브라우저 호출 시): { assets: Asset[] }
+// Query params: cron=true (CRON_SECRET 필요), userId (cron 시 특정 유저 필터)
+// 브라우저 호출 시: 세션 쿠키로 유저를 식별하고 Redis의 자산을 사용
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
@@ -192,7 +219,8 @@ export async function POST(request: NextRequest) {
     // Vercel Cron 인증 헤더 확인 (cron=true 일 때만)
     if (isCron) {
       const authHeader = request.headers.get('authorization')
-      if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      const cronSecret = process.env.CRON_SECRET
+      if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
     }
@@ -207,7 +235,7 @@ export async function POST(request: NextRequest) {
 
     // Cron일 때: 모든 유저 또는 특정 유저 처리
     // 클라이언트 호출일 때: body에서 userId와 assets 받음
-    let assetsToProcess: { userId: string; assets: Asset[] }[] = []
+    const assetsToProcess: { userId: string; assets: Asset[] }[] = []
 
     if (isCron) {
       // Cron: Redis에서 모든 유저의 자산 목록을 가져옴
@@ -237,12 +265,15 @@ export async function POST(request: NextRequest) {
         assetsToProcess.push({ userId: uid, assets: userAssets })
       }
     } else {
-      // 클라이언트 호출
-      const body = await request.json()
-      const { userId, assets } = body as { userId: string; assets: Asset[] }
+      // 클라이언트 호출: 세션 유저의 자산을 서버가 직접 읽는다 (body를 신뢰하지 않음)
+      const auth = await requireUser()
+      if ('error' in auth) return auth.error
+      const userId = auth.user.id
 
-      if (!userId || !assets) {
-        return NextResponse.json({ error: 'userId and assets are required' }, { status: 400 })
+      const raw = await redis.get(`assets:${userId}`)
+      const assets: Asset[] = raw ? JSON.parse(raw) : []
+      if (assets.length === 0) {
+        return NextResponse.json({ skipped: true, reason: 'no_assets' })
       }
 
       // 당일 락 확인
@@ -270,12 +301,20 @@ export async function POST(request: NextRequest) {
 
     for (const { userId, assets } of assetsToProcess) {
       const pipeline = redis.pipeline()
+      let recorded = 0
 
       for (const asset of assets) {
+        const isCash = asset.exchange === 'CASH_KRW' || asset.exchange === 'CASH_USD'
+        if (!isCash && !prices[asset.symbol]) {
+          // 시세 조회 실패 시 0원으로 기록하면 이력이 왜곡되므로 건너뛴다
+          console.warn(`[daily-snapshot] 시세 없음, 기록 생략: ${userId} ${asset.symbol}`)
+          continue
+        }
         const { krw, usd } = calcValuation(asset, prices, exchangeRate)
         const key = getDailyKey(userId, today, asset.symbol)
         const value = JSON.stringify({ krw, usd, recordedAt })
         pipeline.set(key, value, 'EX', TTL)
+        recorded++
       }
 
       // 당일 락 설정 (26시간 TTL — 자정 넘어도 안전하게)
@@ -283,7 +322,7 @@ export async function POST(request: NextRequest) {
       pipeline.set(lockKey, '1', 'EX', 26 * 60 * 60)
 
       await pipeline.exec()
-      results[userId] = assets.length
+      results[userId] = recorded
     }
 
     return NextResponse.json({
@@ -293,8 +332,9 @@ export async function POST(request: NextRequest) {
       usersProcessed: assetsToProcess.length,
       assetCounts: results,
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error('[daily-snapshot] POST 오류:', error)
-    return NextResponse.json({ error: 'Failed to save snapshot', details: error.message }, { status: 500 })
+    const details = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: 'Failed to save snapshot', details }, { status: 500 })
   }
 }

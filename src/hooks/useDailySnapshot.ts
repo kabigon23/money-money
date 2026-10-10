@@ -27,7 +27,9 @@ const getStorageKey = (userId: string) => `daily_snapshot_done:${userId}`
 export function useDailySnapshot({ userId, assets }: UseDailySnapshotOptions) {
   // assets가 아직 로딩 중이면 빈 배열이므로, 실제 자산이 있을 때만 동작
   const assetsRef = useRef(assets)
-  assetsRef.current = assets
+  useEffect(() => {
+    assetsRef.current = assets
+  }, [assets])
 
   useEffect(() => {
     if (!userId) return
@@ -46,8 +48,7 @@ export function useDailySnapshot({ userId, assets }: UseDailySnapshotOptions) {
       try {
         const res = await fetch('/api/daily-snapshot', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, assets: assetsRef.current }),
+          credentials: 'include',
         })
 
         const data = await res.json()

@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Key, Lock, ArrowRight, CheckCircle2, ShieldCheck, Loader2, RefreshCw, Eye, EyeOff, Copy } from 'lucide-react'
+import { Key, Lock, ArrowRight, CheckCircle2, Loader2, RefreshCw, Eye, EyeOff, Copy } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
 interface PasswordResetDialogProps {

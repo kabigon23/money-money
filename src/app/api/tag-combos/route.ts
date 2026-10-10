@@ -1,29 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { redis } from '@/lib/redis'
-import { getSession } from '@/lib/session'
-import { cookies } from 'next/headers'
+import { requireUser } from '@/lib/api-auth'
+import { parseBody, tagCombosBodySchema } from '@/lib/schemas'
 
 const getKey = (userId: string) => `tag_combos:${userId}`
 
 export async function GET() {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = await getSession(token)
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireUser()
+    if ('error' in auth) return auth.error
 
-    const data = await redis.get(getKey(userId))
+    const data = await redis.get(getKey(auth.user.id))
     return NextResponse.json(data ? JSON.parse(data) : [])
 }
 
 export async function POST(request: NextRequest) {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('session_token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const userId = await getSession(token)
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireUser()
+    if ('error' in auth) return auth.error
 
-    const combos = await request.json()
-    await redis.set(getKey(userId), JSON.stringify(combos))
+    const parsed = await parseBody(request, tagCombosBodySchema)
+    if ('error' in parsed) return parsed.error
+
+    await redis.set(getKey(auth.user.id), JSON.stringify(parsed.data))
     return NextResponse.json({ success: true })
 }

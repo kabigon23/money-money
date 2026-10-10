@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import YahooFinance from 'yahoo-finance2'
+import { fetchGoldPrices } from '@/lib/gold'
+import type { YfQuote } from '@/lib/yahoo'
+import type { PriceInfo } from '@/types'
 
 const yahooFinance = new YahooFinance();
 
@@ -20,13 +23,11 @@ function getMarketSession(quoteType: string | undefined, marketState: string | u
     }
 }
 
-/** KRX 금현물 시세를 /api/gold 에서 조회하여 PriceInfo 형태로 반환 */
-async function fetchGoldKrxPrice(baseUrl: string): Promise<Record<string, any>> {
+/** KRX 금현물 시세를 조회하여 PriceInfo 형태로 반환 */
+async function fetchGoldKrxPrice(): Promise<Record<string, PriceInfo>> {
     try {
-        const res = await fetch(`${baseUrl}/api/gold?term=5M`, { next: { revalidate: 1800 } })
-        if (!res.ok) return {}
-        const data = await res.json()
-        const latest = data?.latest
+        const data = await fetchGoldPrices('5M')
+        const latest = data.latest
         if (!latest) return {}
         return {
             GOLD_KRX: {
@@ -63,29 +64,22 @@ export async function GET(request: NextRequest) {
 
     try {
         // Yahoo Finance 호출 (금 제외)
-        const yfPromises: Promise<any>[] = [yahooFinance.quote('USDKRW=X')]
-        if (symbols.length > 0) {
-            yfPromises.unshift(yahooFinance.quote(symbols))
-        }
+        const quotesPromise = symbols.length > 0
+            ? (yahooFinance.quote(symbols) as Promise<unknown> as Promise<YfQuote[]>)
+            : Promise.resolve([] as YfQuote[])
+        const fxPromise = yahooFinance.quote('USDKRW=X') as Promise<unknown> as Promise<YfQuote>
 
         // KRX 금시세 호출 (금 있을 때만)
-        const origin = request.headers.get('host')
-            ? `${request.nextUrl.protocol}//${request.headers.get('host')}`
-            : 'http://localhost:3000'
-        const goldPromise = hasGold ? fetchGoldKrxPrice(origin) : Promise.resolve({})
+        const goldPromise = hasGold ? fetchGoldKrxPrice() : Promise.resolve({})
 
-        const [yfResults, goldPrices] = await Promise.all([
-            Promise.all(yfPromises),
+        const [quotes, exchangeRateResult, goldPrices] = await Promise.all([
+            quotesPromise,
+            fxPromise,
             goldPromise,
         ])
+        const results: Record<string, PriceInfo> = {}
 
-        const priceResults = symbols.length > 0 ? yfResults[0] : []
-        const exchangeRateResult = symbols.length > 0 ? yfResults[1] : yfResults[0]
-        const results: Record<string, any> = {}
-
-        const quotes = Array.isArray(priceResults) ? priceResults : [priceResults]
-
-        quotes.forEach((quote: any) => {
+        quotes.forEach((quote) => {
             if (!quote?.symbol) return
 
             const session = getMarketSession(quote.quoteType, quote.marketState)
@@ -112,8 +106,8 @@ export async function GET(request: NextRequest) {
                 symbol: quote.symbol,
                 // 실효 가격 (현재 세션 기준)
                 currentPrice: effectivePrice,
-                change: effectiveChange,
-                changePercent: effectiveChangePercent,
+                change: effectiveChange ?? 0,
+                changePercent: effectiveChangePercent ?? 0,
                 // 정규장 가격 (항상 제공)
                 regularPrice: quote.regularMarketPrice,
                 regularChange: quote.regularMarketChange,
@@ -135,11 +129,12 @@ export async function GET(request: NextRequest) {
         // KRX 금시세 병합
         Object.assign(results, goldPrices)
 
-        const exchangeRate = (exchangeRateResult as any)?.regularMarketPrice || 1350
+        const exchangeRate = exchangeRateResult?.regularMarketPrice || 1350
 
         return NextResponse.json({ prices: results, exchangeRate })
-    } catch (error: any) {
+    } catch (error) {
         console.error('Yahoo Finance Error:', error)
-        return NextResponse.json({ error: 'Failed to fetch market data', details: error.message }, { status: 500 })
+        const details = error instanceof Error ? error.message : String(error)
+        return NextResponse.json({ error: 'Failed to fetch market data', details }, { status: 500 })
     }
 }

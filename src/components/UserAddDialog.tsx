@@ -52,8 +52,8 @@ export function UserAddDialog({ trigger }: { trigger?: React.ReactNode }) {
             const newUser = { id: uuidv4(), username, nickname, role }
             await createUser(newUser, password, adminPassword)
             setOpen(false)
-        } catch (err: any) {
-            setError(err.message || '계정 생성 중 오류가 발생했습니다.')
+        } catch (err) {
+            setError((err instanceof Error && err.message) || '계정 생성 중 오류가 발생했습니다.')
         } finally {
             setLoading(false)
         }

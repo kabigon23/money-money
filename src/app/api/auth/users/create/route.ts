@@ -1,45 +1,34 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { cookies } from 'next/headers'
-import { getSession } from '@/lib/session'
+import { v4 as uuidv4 } from 'uuid'
 import { redis } from '@/lib/redis'
+import { requireAdmin, verifyUserPassword } from '@/lib/api-auth'
+import { createUserBodySchema, parseBody } from '@/lib/schemas'
+import type { User } from '@/lib/auth'
 
 export async function POST(request: Request) {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('session_token')?.value
+    const auth = await requireAdmin()
+    if ('error' in auth) return auth.error
 
-    if (!token) return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 })
+    const parsed = await parseBody(request, createUserBodySchema)
+    if ('error' in parsed) return parsed.error
+    const { userData, password, adminPassword } = parsed.data
 
-    const requesterId = await getSession(token)
-    if (!requesterId) return NextResponse.json({ error: '세션이 만료되었습니다.' }, { status: 401 })
+    if (!(await verifyUserPassword(auth.user.username, adminPassword))) {
+        return NextResponse.json({ error: '관리자 비밀번호가 올바르지 않습니다.' }, { status: 401 })
+    }
 
-    const requesterJson = await redis.get(`user:${requesterId}`)
-    if (!requesterJson) return NextResponse.json({ error: '사용자를 찾을 수 없습니다.' }, { status: 404 })
+    if (await redis.get(`credential:${userData.username}`)) {
+        return NextResponse.json({ error: '이미 사용 중인 아이디입니다.' }, { status: 409 })
+    }
 
-    const requester = JSON.parse(requesterJson)
-    if (requester.role !== 'ADMIN') return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 })
-
-    const { userData, password, adminPassword } = await request.json()
-
-    // Verify admin password
-    const adminCredJson = await redis.get(`credential:${requester.username}`)
-    if (!adminCredJson) return NextResponse.json({ error: '관리자 인증 실패' }, { status: 401 })
-    const adminCred = JSON.parse(adminCredJson)
-    const isValid = await bcrypt.compare(adminPassword, adminCred.hashedPassword)
-    if (!isValid) return NextResponse.json({ error: '관리자 비밀번호가 올바르지 않습니다.' }, { status: 401 })
-
-    // Check if username exists
-    const existingCred = await redis.get(`credential:${userData.username}`)
-    if (existingCred) return NextResponse.json({ error: '이미 사용 중인 아이디입니다.' }, { status: 409 })
-
-    // Hash password and store
+    // id는 클라이언트 값을 신뢰하지 않고 서버에서 생성한다 (기존 유저 레코드 덮어쓰기 방지)
+    const newUser: User = { id: uuidv4(), username: userData.username, nickname: userData.nickname, role: userData.role }
     const hashedPassword = await bcrypt.hash(password, 10)
-    const newCred = { id: userData.id, username: userData.username, hashedPassword }
-    const newUser = { id: userData.id, username: userData.username, nickname: userData.nickname, role: userData.role }
 
-    await redis.set(`credential:${userData.username}`, JSON.stringify(newCred))
-    await redis.set(`user:${userData.id}`, JSON.stringify(newUser))
-    await redis.sadd('users:list', userData.id)
+    await redis.set(`credential:${newUser.username}`, JSON.stringify({ id: newUser.id, username: newUser.username, hashedPassword }))
+    await redis.set(`user:${newUser.id}`, JSON.stringify(newUser))
+    await redis.sadd('users:list', newUser.id)
 
     return NextResponse.json({ user: newUser })
 }

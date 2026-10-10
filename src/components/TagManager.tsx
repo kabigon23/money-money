@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, X, Tag as TagIcon } from 'lucide-react'
+import { X, Tag as TagIcon } from 'lucide-react'
 import {
     Dialog,
     DialogContent,

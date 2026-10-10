@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
-    Settings2, ShieldAlert, Lock, Trash2, Save, Crown,
+    Settings2, Lock, Trash2, Save, Crown,
     DatabaseZap, AlertTriangle, Loader2, ChevronLeft
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
@@ -63,8 +63,8 @@ export function UserEditDialog({ user: targetUser, trigger, isCurrentUser }: Use
         try {
             await updateUserInfo(targetUser.id, { nickname, role: 'ADMIN' }, adminPassword)
             setOpen(false)
-        } catch (err: any) {
-            setError(err.message || '인증 중 오류가 발생했습니다.')
+        } catch (err) {
+            setError((err instanceof Error && err.message) || '인증 중 오류가 발생했습니다.')
         } finally {
             setLoading(false)
         }
@@ -76,8 +76,8 @@ export function UserEditDialog({ user: targetUser, trigger, isCurrentUser }: Use
         try {
             await deleteUser(targetUser.id, adminPassword)
             setOpen(false)
-        } catch (err: any) {
-            setError(err.message || '삭제 중 오류가 발생했습니다.')
+        } catch (err) {
+            setError((err instanceof Error && err.message) || '삭제 중 오류가 발생했습니다.')
         } finally {
             setLoading(false)
         }
@@ -104,12 +104,12 @@ export function UserEditDialog({ user: targetUser, trigger, isCurrentUser }: Use
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ userId: targetUser.id }),
+                body: JSON.stringify({ userId: targetUser.id, adminPassword }),
             })
             if (!wipeRes.ok) throw new Error('데이터 초기화 실패')
             setWipeSuccess(true)
-        } catch (err: any) {
-            setError(err.message || '데이터 초기화 중 오류가 발생했습니다.')
+        } catch (err) {
+            setError((err instanceof Error && err.message) || '데이터 초기화 중 오류가 발생했습니다.')
         } finally {
             setLoading(false)
         }

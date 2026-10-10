@@ -44,8 +44,8 @@ export function UserPasswordChangeDialog({ trigger }: { trigger?: React.ReactNod
                 throw new Error(data.error || '비밀번호 변경 실패')
             }
             setStep('SUCCESS')
-        } catch (err: any) {
-            setError(err.message || '비밀번호 변경 중 오류가 발생했습니다.')
+        } catch (err) {
+            setError((err instanceof Error && err.message) || '비밀번호 변경 중 오류가 발생했습니다.')
         } finally {
             setLoading(false)
         }

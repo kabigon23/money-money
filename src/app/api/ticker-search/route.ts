@@ -24,14 +24,16 @@ export async function GET(request: NextRequest) {
         }
 
         const data = await res.json()
-        const quotes = data?.quotes || []
+        // Yahoo 검색 API 응답 중 사용하는 필드
+        interface SearchQuote { symbol?: string; shortname?: string; longname?: string; exchange?: string; quoteType?: string }
+        const quotes: SearchQuote[] = data?.quotes || []
 
         const allowedTypes = ['EQUITY', 'ETF', 'CRYPTOCURRENCY', 'MUTUALFUND']
         if (includeIndex) allowedTypes.push('INDEX', 'FUTURE')
 
         const results = quotes
-            .filter((q: any) => q.symbol && allowedTypes.includes(q.quoteType))
-            .map((q: any) => ({
+            .filter((q) => q.symbol && q.quoteType && allowedTypes.includes(q.quoteType))
+            .map((q) => ({
                 symbol: q.symbol,
                 name: q.shortname || q.longname || q.symbol,
                 exchange: q.exchange || '',
@@ -39,7 +41,7 @@ export async function GET(request: NextRequest) {
             }))
 
         return NextResponse.json(results)
-    } catch (error) {
+    } catch {
         return NextResponse.json([])
     }
 }

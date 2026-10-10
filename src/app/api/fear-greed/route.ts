@@ -31,8 +31,9 @@ export async function GET() {
             rating: current.rating as string,
             timestamp: current.timestamp,
         })
-    } catch (error: any) {
-        console.error('Fear & Greed fetch error:', error.message)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        console.error('Fear & Greed fetch error:', message)
+        return NextResponse.json({ error: message }, { status: 500 })
     }
 }

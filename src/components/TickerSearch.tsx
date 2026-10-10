@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Search, X, TrendingUp, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 
 export interface TickerResult {
     symbol: string
@@ -126,7 +125,7 @@ export function TickerSearch({ onSelect, exchange, includeIndex }: TickerSearchP
             }
         }
         fetchResults()
-    }, [debouncedQuery])
+    }, [debouncedQuery, includeIndex])
 
     const handleSelect = (item: TickerResult) => {
         onSelect(item)

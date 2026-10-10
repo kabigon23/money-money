@@ -4,7 +4,6 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
-import { Badge } from "@/components/ui/badge"
 import { PasswordResetDialog } from '@/components/PasswordResetDialog'
 import { UserEditDialog } from '@/components/UserEditDialog'
 import { UserAddDialog } from '@/components/UserAddDialog'

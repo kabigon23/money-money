@@ -1,39 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { redis } from '@/lib/redis'
-import { Asset } from '@/types'
+import { requireUser } from '@/lib/api-auth'
+import { parseBody, assetsBodySchema } from '@/lib/schemas'
 
 const getAssetsKey = (userId: string) => `assets:${userId}`
 
-export async function GET(request: NextRequest) {
+export async function GET() {
+    const auth = await requireUser()
+    if ('error' in auth) return auth.error
+
     try {
-        const { searchParams } = new URL(request.url)
-        const userId = searchParams.get('userId')
-
-        if (!userId) {
-            return NextResponse.json({ error: 'UserId is required' }, { status: 400 })
-        }
-
-        const data = await redis.get(getAssetsKey(userId))
-        const assets = data ? JSON.parse(data) : []
-        return NextResponse.json(assets)
-    } catch (error: any) {
-        return NextResponse.json({ error: 'Failed to fetch assets', details: error.message }, { status: 500 })
+        const data = await redis.get(getAssetsKey(auth.user.id))
+        return NextResponse.json(data ? JSON.parse(data) : [])
+    } catch (error) {
+        console.error('[assets] GET error:', error)
+        return NextResponse.json({ error: 'Failed to fetch assets' }, { status: 500 })
     }
 }
 
 export async function POST(request: NextRequest) {
+    const auth = await requireUser()
+    if ('error' in auth) return auth.error
+
     try {
-        const { searchParams } = new URL(request.url)
-        const userId = searchParams.get('userId')
-
-        if (!userId) {
-            return NextResponse.json({ error: 'UserId is required' }, { status: 400 })
-        }
-
-        const assets = await request.json()
-        await redis.set(getAssetsKey(userId), JSON.stringify(assets))
+        const parsed = await parseBody(request, assetsBodySchema)
+        if ('error' in parsed) return parsed.error
+        await redis.set(getAssetsKey(auth.user.id), JSON.stringify(parsed.data))
         return NextResponse.json({ success: true })
-    } catch (error: any) {
-        return NextResponse.json({ error: 'Failed to save assets', details: error.message }, { status: 500 })
+    } catch (error) {
+        console.error('[assets] POST error:', error)
+        return NextResponse.json({ error: 'Failed to save assets' }, { status: 500 })
     }
 }

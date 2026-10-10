@@ -23,16 +23,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [users, setUsers] = useState<User[]>([])
     const [isLoading, setIsLoading] = useState(true)
 
-    // Auto-seed and load session on mount
+    const loadUsers = useCallback(async () => {
+        try {
+            const res = await fetch('/api/auth/users', { credentials: 'include' })
+            if (res.ok) {
+                const data = await res.json()
+                setUsers(data.users || [])
+            }
+        } catch (e) {
+            console.warn('Failed to load users:', e)
+        }
+    }, [])
+
+    // Load session on mount
     useEffect(() => {
         async function init() {
-            // Seed initial users if not yet done
-            try {
-                await fetch('/api/auth/seed', { method: 'POST' })
-            } catch (e) {
-                console.warn('Seed failed:', e)
-            }
-
             // Restore session from cookie
             try {
                 const res = await fetch('/api/auth/me', { credentials: 'include' })
@@ -52,19 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         }
         init()
-    }, [])
-
-    const loadUsers = useCallback(async () => {
-        try {
-            const res = await fetch('/api/auth/users', { credentials: 'include' })
-            if (res.ok) {
-                const data = await res.json()
-                setUsers(data.users || [])
-            }
-        } catch (e) {
-            console.warn('Failed to load users:', e)
-        }
-    }, [])
+    }, [loadUsers])
 
     // Load users list whenever user becomes admin
     useEffect(() => {

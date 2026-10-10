@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Wallet, ShieldCheck, User as UserIcon, Lock } from 'lucide-react'
+import { User as UserIcon, Lock } from 'lucide-react'
 
 export default function LoginPage() {
     const [username, setUsername] = useState('')

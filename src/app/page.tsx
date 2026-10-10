@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useDailySnapshot } from '@/hooks/useDailySnapshot'
-import { Trash2, TrendingUp, TrendingDown, DollarSign, Wallet, Filter, Pencil, LogOut, User as UserIcon, Key, Download, ChevronDown, Check } from 'lucide-react'
+import { Trash2, TrendingUp, TrendingDown, Wallet, Pencil, LogOut, User as UserIcon, Key, Download, ChevronDown, Check } from 'lucide-react'
 import { UserPasswordChangeDialog } from '@/components/UserPasswordChangeDialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AssetDialog } from '@/components/AssetDialog'
@@ -30,118 +30,6 @@ import { useAuth } from '@/context/AuthContext'
 
 
 const isCashAsset = (exchange: string) => exchange === 'CASH_KRW' || exchange === 'CASH_USD'
-const isGoldAsset = (exchange: string) => exchange === 'GOLD_KRX'
-
-const INITIAL_ASSETS: Asset[] = [
-  {
-    id: 'asset-qld',
-    symbol: 'QLD',
-    name: 'QLD',
-    quantity: 769,
-    exchange: 'US',
-    categoryId: 'default',
-    tagId: 'tag-2x',
-    history: [{ id: 'h-1', type: 'INITIAL', amount: 769, totalAfter: 769, timestamp: Date.now() }],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'asset-qqq',
-    symbol: 'QQQ',
-    name: 'QQQ',
-    quantity: 55,
-    exchange: 'US',
-    categoryId: 'default',
-    tagId: 'tag-1x',
-    history: [{ id: 'h-2', type: 'INITIAL', amount: 55, totalAfter: 55, timestamp: Date.now() }],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'asset-qqqm',
-    symbol: 'QQQM',
-    name: 'QQQM',
-    quantity: 87,
-    exchange: 'US',
-    categoryId: 'default',
-    tagId: 'tag-1x',
-    history: [{ id: 'h-3', type: 'INITIAL', amount: 87, totalAfter: 87, timestamp: Date.now() }],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'asset-kodex-nasdaq',
-    symbol: 'KODEX 미국나스닥100',
-    name: 'KODEX 미국나스닥100',
-    quantity: 1174,
-    exchange: 'KR',
-    categoryId: 'default',
-    tagId: 'tag-1x',
-    history: [{ id: 'h-4', type: 'INITIAL', amount: 1174, totalAfter: 1174, timestamp: Date.now() }],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'asset-spy',
-    symbol: 'SPY',
-    name: 'SPY',
-    quantity: 1,
-    exchange: 'US',
-    categoryId: 'default',
-    tagId: 'tag-1x',
-    history: [{ id: 'h-5', type: 'INITIAL', amount: 1, totalAfter: 1, timestamp: Date.now() }],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'asset-iren',
-    symbol: 'IREN',
-    name: 'IREN',
-    quantity: 75,
-    exchange: 'US',
-    categoryId: 'default',
-    tagId: 'tag-iren',
-    history: [{ id: 'h-6', type: 'INITIAL', amount: 75, totalAfter: 75, timestamp: Date.now() }],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'asset-oklo',
-    symbol: 'OKLO',
-    name: 'OKLO',
-    quantity: 42,
-    exchange: 'US',
-    categoryId: 'default',
-    tagId: 'tag-oklo',
-    history: [{ id: 'h-7', type: 'INITIAL', amount: 42, totalAfter: 42, timestamp: Date.now() }],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'asset-ionq',
-    symbol: 'IONQ',
-    name: 'IONQ',
-    quantity: 82,
-    exchange: 'US',
-    categoryId: 'default',
-    tagId: 'tag-ionq',
-    history: [{ id: 'h-8', type: 'INITIAL', amount: 82, totalAfter: 82, timestamp: Date.now() }],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'asset-rklb',
-    symbol: 'RKLB',
-    name: 'RKLB',
-    quantity: 40,
-    exchange: 'US',
-    categoryId: 'default',
-    tagId: 'tag-rklb',
-    history: [{ id: 'h-9', type: 'INITIAL', amount: 40, totalAfter: 40, timestamp: Date.now() }],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  }
-]
 
 export default function Home() {
   const { user, logout, isLoading: authLoading } = useAuth()
@@ -202,9 +90,9 @@ export default function Home() {
       setDataLoading(true)
       try {
         const [assetsRes, categoriesRes, tagsRes] = await Promise.all([
-          fetch(`/api/assets?userId=${user.id}`),
-          fetch(`/api/categories?userId=${user.id}`),
-          fetch(`/api/tags?userId=${user.id}`)
+          fetch('/api/assets'),
+          fetch('/api/categories'),
+          fetch('/api/tags')
         ])
 
         const assetsData: Asset[] = await assetsRes.json()
@@ -225,7 +113,7 @@ export default function Home() {
         setTags(tagsData)
 
         if (hadMigration) {
-          fetch(`/api/assets?userId=${user.id}`, {
+          fetch('/api/assets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(normalizedAssets)
@@ -269,7 +157,7 @@ export default function Home() {
   const persistAssets = async (newAssets: Asset[]) => {
     try {
       if (!user) return
-      await fetch(`/api/assets?userId=${user.id}`, {
+      await fetch('/api/assets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAssets)
@@ -282,7 +170,7 @@ export default function Home() {
   const persistCategories = async (newCategories: Category[]) => {
     try {
       if (!user) return
-      await fetch(`/api/categories?userId=${user.id}`, {
+      await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newCategories)
@@ -295,7 +183,7 @@ export default function Home() {
   const persistTags = async (newTags: Tag[]) => {
     try {
       if (!user) return
-      await fetch(`/api/tags?userId=${user.id}`, {
+      await fetch('/api/tags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newTags)
@@ -306,7 +194,7 @@ export default function Home() {
   }
 
   // 통화 변환 헬퍼
-  const getPriceInBase = (price: number, assetExchange: string) => {
+  const getPriceInBase = useCallback((price: number, assetExchange: string) => {
     if (baseCurrency === 'KRW') {
       // USD 계열은 환율 곱함, KRW 계열(한국주식, 금)&현금원화는 그대로
       return (assetExchange === 'US' || assetExchange === 'CRYPTO' || assetExchange === 'CASH_USD')
@@ -318,7 +206,7 @@ export default function Home() {
         ? price / exchangeRate
         : price
     }
-  }
+  }, [baseCurrency, exchangeRate])
 
   const formatCurrency = (value: number) => {
     if (baseCurrency === 'KRW') {
@@ -401,7 +289,7 @@ export default function Home() {
     }
 
     return { currentTotalValue: totalValue }
-  }, [filteredAssets, cashAssets, prices, baseCurrency, exchangeRate, includeCash])
+  }, [filteredAssets, cashAssets, prices, includeCash, getPriceInBase])
 
 
 

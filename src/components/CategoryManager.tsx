@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Settings2 } from 'lucide-react'
+import { Settings2 } from 'lucide-react'
 import {
     Dialog,
     DialogContent,
