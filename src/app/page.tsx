@@ -740,54 +740,56 @@ export default function Home() {
                     const valueInBase = asset.quantity * getPriceInBase(1, asset.exchange)
                     const isKRW = asset.exchange === 'CASH_KRW'
                     return (
-                      <div key={asset.id} className="flex items-center justify-between p-3 rounded-xl bg-yellow-50/60 border border-yellow-100 shadow-sm">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 shrink-0 rounded-full bg-yellow-100 flex items-center justify-center font-bold text-yellow-700 text-sm">
-                            {isKRW ? '₩' : '$'}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-bold text-sm">{isKRW ? '원화 현금' : '달러 현금'}</div>
-                            <div className="text-xs text-muted-foreground font-mono">
-                              {isKRW
-                                ? `${Math.round(asset.quantity).toLocaleString()}원`
-                                : `$${asset.quantity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              }
-                            </div>
-                            {asset.memo && (
-                              <div className="mt-1 text-xs text-amber-700 whitespace-pre-wrap break-words">
-                                📝 {asset.memo}
-                              </div>
-                            )}
-                          </div>
+                      <div key={asset.id} className="flex items-center gap-3 p-3 rounded-xl bg-yellow-50/60 border border-yellow-100 shadow-sm">
+                        <div className="w-9 h-9 shrink-0 rounded-full bg-yellow-100 flex items-center justify-center font-bold text-yellow-700 text-sm">
+                          {isKRW ? '₩' : '$'}
                         </div>
-                        <div className="flex items-center gap-1 shrink-0 ml-2">
-                          <span className="font-bold text-base mr-1">{formatCurrency(valueInBase)}</span>
-                          <AssetDialog
-                            onSave={saveAsset}
-                            categories={categories}
-                            tags={tags}
-                            initialAsset={asset}
-                            isCashOnly
-                            trigger={
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-yellow-600 hover:bg-yellow-50">
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            }
-                          />
-                          <DeleteConfirmDialog
-                            trigger={
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            }
-                            title="현금 자산을 삭제할까요?"
-                            description={`${isKRW ? '원화' : '달러'} 현금 자산이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
-                            onConfirm={() => deleteAsset(asset.id)}
-                          />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="font-bold text-sm">{isKRW ? '원화 현금' : '달러 현금'}</div>
+                              <div className="text-xs text-muted-foreground font-mono">
+                                {isKRW
+                                  ? `${Math.round(asset.quantity).toLocaleString()}원`
+                                  : `$${asset.quantity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                }
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="font-bold text-base mr-1">{formatCurrency(valueInBase)}</span>
+                              <AssetDialog
+                                onSave={saveAsset}
+                                categories={categories}
+                                tags={tags}
+                                initialAsset={asset}
+                                isCashOnly
+                                trigger={
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-yellow-600 hover:bg-yellow-50">
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                }
+                              />
+                              <DeleteConfirmDialog
+                                trigger={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                }
+                                title="현금 자산을 삭제할까요?"
+                                description={`${isKRW ? '원화' : '달러'} 현금 자산이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
+                                onConfirm={() => deleteAsset(asset.id)}
+                              />
+                            </div>
+                          </div>
+                          {asset.memo && (
+                            <div className="mt-1 text-xs text-amber-700 whitespace-pre-wrap break-words">
+                              📝 {asset.memo}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )
