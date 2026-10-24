@@ -240,13 +240,10 @@ export function AssetAllocationChart({ assets, tags, prices, baseCurrency, excha
                                 )}
                             </div>
                             <div className="flex items-center gap-2 shrink-0 ml-2">
-                                {combo.tagNames.length >= 2 && (
+                                {combo.tagNames.length >= 1 && (
                                     <span className="text-sm font-black text-primary">
                                         {(combined * 100).toFixed(1)}%
                                     </span>
-                                )}
-                                {combo.tagNames.length === 1 && (
-                                    <span className="text-xs text-muted-foreground">태그 더 추가</span>
                                 )}
                                 <button
                                     onClick={e => { e.stopPropagation(); removeCombo(combo.id) }}
