@@ -741,11 +741,11 @@ export default function Home() {
                     const isKRW = asset.exchange === 'CASH_KRW'
                     return (
                       <div key={asset.id} className="flex items-center justify-between p-3 rounded-xl bg-yellow-50/60 border border-yellow-100 shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-yellow-100 flex items-center justify-center font-bold text-yellow-700 text-sm">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 shrink-0 rounded-full bg-yellow-100 flex items-center justify-center font-bold text-yellow-700 text-sm">
                             {isKRW ? '₩' : '$'}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="font-bold text-sm">{isKRW ? '원화 현금' : '달러 현금'}</div>
                             <div className="text-xs text-muted-foreground font-mono">
                               {isKRW
@@ -754,13 +754,13 @@ export default function Home() {
                               }
                             </div>
                             {asset.memo && (
-                              <div className="mt-0.5 max-w-[200px] truncate text-xs text-amber-600" title={asset.memo}>
+                              <div className="mt-1 text-xs text-amber-700 whitespace-pre-wrap break-words">
                                 📝 {asset.memo}
                               </div>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
                           <span className="font-bold text-base mr-1">{formatCurrency(valueInBase)}</span>
                           <AssetDialog
                             onSave={saveAsset}
