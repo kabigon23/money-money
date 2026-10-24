@@ -746,17 +746,8 @@ export default function Home() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="font-bold text-sm">{isKRW ? '원화 현금' : '달러 현금'}</div>
-                              <div className="text-xs text-muted-foreground font-mono">
-                                {isKRW
-                                  ? `${Math.round(asset.quantity).toLocaleString()}원`
-                                  : `$${asset.quantity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                }
-                              </div>
-                            </div>
+                            <div className="font-bold text-sm whitespace-nowrap">{isKRW ? '원화 현금' : '달러 현금'}</div>
                             <div className="flex items-center gap-1 shrink-0">
-                              <span className="font-bold text-base mr-1">{formatCurrency(valueInBase)}</span>
                               <AssetDialog
                                 onSave={saveAsset}
                                 categories={categories}
@@ -784,6 +775,15 @@ export default function Home() {
                                 onConfirm={() => deleteAsset(asset.id)}
                               />
                             </div>
+                          </div>
+                          <div className="flex flex-wrap items-baseline gap-x-2">
+                            <span className="font-bold text-base">{formatCurrency(valueInBase)}</span>
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {isKRW
+                                ? `${Math.round(asset.quantity).toLocaleString()}원`
+                                : `$${asset.quantity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              }
+                            </span>
                           </div>
                           {asset.memo && (
                             <div className="mt-1 text-xs text-amber-700 whitespace-pre-wrap break-words">
