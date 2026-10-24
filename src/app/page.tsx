@@ -779,9 +779,9 @@ export default function Home() {
                           <div className="flex flex-wrap items-baseline gap-x-2">
                             <span className="font-bold text-base">{formatCurrency(valueInBase)}</span>
                             <span className="text-xs text-muted-foreground font-mono">
-                              {isKRW
-                                ? `${Math.round(asset.quantity).toLocaleString()}원`
-                                : `$${asset.quantity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              {baseCurrency === 'KRW'
+                                ? `$${(valueInBase / exchangeRate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                : `${Math.round(valueInBase * exchangeRate).toLocaleString()}원`
                               }
                             </span>
                           </div>
