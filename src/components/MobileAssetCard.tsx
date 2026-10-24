@@ -134,6 +134,13 @@ export function MobileAssetCard({
                     )
                 })()}
 
+                {asset.memo && (
+                    <div className="mt-2 px-2 py-1.5 bg-muted/50 rounded-lg border border-muted text-xs text-muted-foreground whitespace-pre-wrap break-words">
+                        <span className="font-semibold text-amber-600">📝 메모</span>
+                        <div className="mt-0.5">{asset.memo}</div>
+                    </div>
+                )}
+
                 <div className="flex justify-between items-center mt-2">
                     <div className="flex flex-col">
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">평가 가치</span>

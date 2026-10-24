@@ -57,6 +57,7 @@ const formSchema = z.object({
     categoryId: z.string().min(1, '카테고리를 선택하세요.'),
     tagId: z.string().nullable().default(null),
     initialAvgPrice: z.coerce.number().min(0).optional(),
+    memo: z.string().max(1000, '메모는 1000자 이내로 입력하세요.').optional(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -92,6 +93,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
             categoryId: initialAsset.categoryId,
             tagId: initialAsset.tagId,
             initialAvgPrice: initialAsset.avgPrice ?? undefined,
+            memo: initialAsset.memo ?? '',
         } : isCashOnly ? {
             symbol: '',
             name: '',
@@ -99,6 +101,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
             exchange: defaultCashExchange,
             categoryId: defaultCategoryId,
             tagId: null,
+            memo: '',
         } : {
             symbol: '',
             name: '',
@@ -107,6 +110,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
             categoryId: 'default',
             tagId: null,
             initialAvgPrice: undefined,
+            memo: '',
         },
     })
 
@@ -134,6 +138,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                         exchange: defaultCashExchange,
                         categoryId: defaultCategoryId,
                         tagId: null,
+                        memo: '',
                     })
                 } else {
                     form.reset({
@@ -144,6 +149,7 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                         categoryId: 'default',
                         tagId: null,
                         initialAvgPrice: undefined,
+                        memo: '',
                     })
                 }
             }
@@ -185,9 +191,11 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
     }
 
     const onSubmit: SubmitHandler<FormValues> = (values) => {
-        const finalValues = isCashOnly
-            ? { ...values, tagId: null }
-            : values
+        const trimmedMemo = values.memo?.trim()
+        const finalValues = {
+            ...(isCashOnly ? { ...values, tagId: null } : values),
+            memo: trimmedMemo ? trimmedMemo : undefined,
+        }
 
         let finalHistory = history
         let finalAvgPrice = currentAvgPrice
@@ -633,6 +641,26 @@ export function AssetDialog({ onSave, categories, tags, initialAsset, trigger, i
                                         </div>
                                     </div>
                                 )}
+                                <FormField
+                                    control={form.control}
+                                    name="memo"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-sm font-semibold">메모</FormLabel>
+                                            <FormControl>
+                                                <textarea
+                                                    {...field}
+                                                    value={field.value ?? ''}
+                                                    rows={3}
+                                                    maxLength={1000}
+                                                    placeholder="이 자산에 대한 메모를 남기세요."
+                                                    className="placeholder:text-muted-foreground border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none resize-y focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                                 <DialogFooter className="pt-4 border-t">
                                     <Button type="submit" className="w-full h-12 text-lg font-black shadow-lg shadow-primary/20">
                                         {isCashOnly ? (isEdit ? '현금 수정 저장' : '현금 추가') : (isEdit ? '수정 내용 저장' : '새로운 종목 추가')}

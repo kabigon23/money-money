@@ -424,7 +424,7 @@ export default function Home() {
     rows.push([`다운로드 시각: ${timestampLabel}`])
     rows.push([])
     // 헤더
-    rows.push(['구분', '거래소', '카테고리', '티커(Symbol)', '종목명', '수량', '평단가', `현재가(원본통화)`, `현재 평가가치(${baseCurrency})`, '태그'])
+    rows.push(['구분', '거래소', '카테고리', '티커(Symbol)', '종목명', '수량', '평단가', `현재가(원본통화)`, `현재 평가가치(${baseCurrency})`, '태그', '메모'])
     // 데이터
     allDownloadAssets.forEach(asset => {
       const priceInfo = prices[asset.symbol]
@@ -455,6 +455,7 @@ export default function Home() {
         nativePrice,
         valuationStr,
         tag ? tag.name : '-',
+        asset.memo ?? '',
       ])
     })
 
@@ -752,6 +753,11 @@ export default function Home() {
                                 : `$${asset.quantity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                               }
                             </div>
+                            {asset.memo && (
+                              <div className="mt-0.5 max-w-[200px] truncate text-xs text-amber-600" title={asset.memo}>
+                                📝 {asset.memo}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
@@ -942,6 +948,11 @@ export default function Home() {
                                 <span className="text-xs text-muted-foreground tracking-widest">
                                   {asset.exchange === 'KR' ? asset.symbol : asset.name}
                                 </span>
+                                {asset.memo && (
+                                  <span className="mt-1 max-w-[220px] truncate text-xs text-amber-600" title={asset.memo}>
+                                    📝 {asset.memo}
+                                  </span>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell className="font-mono">{asset.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}</TableCell>

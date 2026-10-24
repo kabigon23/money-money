@@ -18,6 +18,7 @@ export const assetSchema = z.looseObject({
     categoryId: shortString,
     tagId: shortString.nullish(),
     avgPrice: finiteNumber.nullish(),
+    memo: z.string().max(1000).nullish(),
     history: z.array(z.looseObject({})).max(5000).optional(),
 })
 

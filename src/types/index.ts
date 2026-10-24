@@ -32,6 +32,7 @@ export interface Asset {
     categoryId: string
     tagId: string | null
     avgPrice?: number   // 평균 매수가 (평단가)
+    memo?: string       // 자산별 메모
     history: Transaction[]
     createdAt: number
     updatedAt: number
